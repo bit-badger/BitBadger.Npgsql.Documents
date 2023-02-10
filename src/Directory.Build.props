@@ -1,0 +1,20 @@
+<Project>
+  <PropertyGroup>
+    <TargetFrameworks>net6.0;net7.0</TargetFrameworks>
+    <DebugType>embedded</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <AssemblyVersion>0.8.0.0</AssemblyVersion>
+    <FileVersion>0.8.0.0</FileVersion>
+    <VersionPrefix>0.8.0</VersionPrefix>
+    <PackageReleaseNotes>Document support for Npgsql.FSharp</PackageReleaseNotes>
+    <Authors>danieljsummers</Authors>
+    <Company>Bit Badger Solutions</Company>
+    <PackageProjectUrl>https://github.com/bit-badger/Npgsql.Documents</PackageProjectUrl>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <RepositoryUrl>https://github.com/bit-badger/Npgsql.Documents</RepositoryUrl>
+    <RepositoryType>Git</RepositoryType>
+    <Copyright>MIT License</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>Npgsql PostgreSQL JSON document</PackageTags>
+  </PropertyGroup>
+</Project>
