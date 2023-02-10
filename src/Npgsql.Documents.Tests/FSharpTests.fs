@@ -75,6 +75,19 @@ let unitTests =
                 ]
                 Expect.equal parameters expected "There should have been 2 parameters, one string and one JSONB"
             }
+            test "insert succeeds" {
+                Expect.equal (Query.insert tableName) $"INSERT INTO {tableName} (id, data) VALUES (@id, @data)"
+                    "INSERT statement not correct"
+            }
+            test "update succeeds" {
+                Expect.equal (Query.update tableName) $"UPDATE {tableName} SET data = @data WHERE id = @id"
+                    "UPDATE statement not correct"
+            }
+            test "save succeeds" {
+                Expect.equal (Query.save tableName)
+                    $"INSERT INTO %s{tableName} (id, data) VALUES (@id, @data) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data"
+                    "INSERT ON CONFLICT UPDATE statement not correct"
+            }
         ]
 
     ]
