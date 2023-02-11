@@ -56,6 +56,11 @@ module Configuration =
         | None -> invalidOp "Please provide a data source before attempting data access"
 
 
+/// Shorthand to retrieve the data source
+let private fromDataSource () =
+    Configuration.dataSource () |> Sql.fromDataSource
+
+
 /// Data definition
 [<RequireQualifiedAccess>]
 module Definition =
@@ -64,23 +69,33 @@ module Definition =
     let createTable name =
         $"CREATE TABLE IF NOT EXISTS %s{name} (id TEXT NOT NULL PRIMARY KEY, data JSONB NOT NULL)"
     
-    /// Create a document table
-    let ensureTable name sqlProps = backgroundTask {
-        let! _ = sqlProps |> Sql.query (createTable name) |> Sql.executeNonQueryAsync
-        ()
-    }
-
     /// SQL statement to create an index on documents in the specified table
     let createIndex (name : string) idxType =
         let extraOps = match idxType with Full -> "" | Optimized -> " jsonb_path_ops"
         let tableName = name.Split(".") |> Array.last
         $"CREATE INDEX IF NOT EXISTS idx_{tableName} ON {name} USING GIN (data{extraOps})"
     
-    /// Create an index on documents in the specified table
-    let ensureIndex (name : string) idxType sqlProps = backgroundTask {
-        let! _ = sqlProps |> Sql.query (createIndex name idxType) |> Sql.executeNonQueryAsync
-        ()
-    }
+    /// Definitions that take SqlProps as their last parameter
+    module WithProps =
+        
+        /// Create a document table
+        let ensureTable name sqlProps = backgroundTask {
+            let! _ = sqlProps |> Sql.query (createTable name) |> Sql.executeNonQueryAsync
+            ()
+        }
+
+        /// Create an index on documents in the specified table
+        let ensureIndex name idxType sqlProps = backgroundTask {
+            let! _ = sqlProps |> Sql.query (createIndex name idxType) |> Sql.executeNonQueryAsync
+            ()
+        }
+    
+    /// Create a document table
+    let ensureTable name =
+        WithProps.ensureTable name (fromDataSource ())
+    
+    let ensureIndex name idxType =
+        WithProps.ensureIndex name idxType (fromDataSource ())
 
 
 /// Query construction functions
@@ -257,10 +272,6 @@ module WithProps =
             ()
         }
 
-
-/// Shorthand to retrieve the data source
-let private fromDataSource () =
-    Configuration.dataSource () |> Sql.fromDataSource
 
 /// Retrieve all documents in the given table
 let all<'T> tableName =
