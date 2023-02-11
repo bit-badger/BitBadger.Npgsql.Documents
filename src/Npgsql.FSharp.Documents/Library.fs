@@ -46,8 +46,9 @@ module Configuration =
     /// The data source to use for query execution
     let mutable private dataSourceValue : Npgsql.NpgsqlDataSource option = None
 
-    /// Register a data source to use for query execution
+    /// Register a data source to use for query execution (disposes the current one if it exists)
     let useDataSource source =
+        if Option.isSome dataSourceValue then dataSourceValue.Value.Dispose ()
         dataSourceValue <- Some source
     
     let internal dataSource () =
@@ -112,7 +113,7 @@ module Query =
     
     /// Create a WHERE clause fragment to implement a @? (JSON Path match) condition
     let whereJsonPathMatches paramName =
-        $"data @? %s{paramName}"
+        $"data @? %s{paramName}::jsonpath"
     
     /// Create a JSONB document parameter
     let jsonbDocParam (it : obj) =
@@ -180,6 +181,12 @@ module WithProps =
     /// Queries to count documents
     [<RequireQualifiedAccess>]
     module Count =
+        
+        /// Count all documents in a table
+        let all tableName sqlProps : Task<int> =
+            sqlProps
+            |> Sql.query $"SELECT COUNT(id) AS it FROM %s{tableName}"
+            |> Sql.executeRowAsync (fun row -> row.int "it")
         
         /// Count matching documents using a JSON containment query (@>)
         let byContains tableName (criteria : obj) sqlProps : Task<int> =
@@ -293,6 +300,10 @@ let save<'T> tableName docId (document : 'T) =
 /// Queries to count documents
 [<RequireQualifiedAccess>]
 module Count =
+    
+    /// Count all documents in a table
+    let all tableName =
+        WithProps.Count.all tableName (fromDataSource ())
     
     /// Count matching documents using a JSON containment query (@>)
     let byContains tableName criteria =
