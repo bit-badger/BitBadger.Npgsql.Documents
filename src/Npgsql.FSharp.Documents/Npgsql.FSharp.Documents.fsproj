@@ -6,6 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="IDocumentSerializer.fs" />
     <Compile Include="Library.fs" />
     <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
@@ -13,6 +14,12 @@
   <ItemGroup>
     <PackageReference Include="FSharp.SystemTextJson" Version="1.1.23" />
     <PackageReference Include="Npgsql.FSharp" Version="5.6.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Npgsql.Documents</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
 </Project>

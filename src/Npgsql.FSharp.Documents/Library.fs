@@ -1,15 +1,5 @@
 ﻿module Npgsql.FSharp.Documents
 
-/// The required document serialization implementation
-type IDocumentSerializer =
-    
-    /// Serialize an object to a JSON string
-    abstract Serialize<'T> : 'T -> string
-    
-    /// Deserialize a JSON string into an object
-    abstract Deserialize<'T> : string -> 'T
-
-
 /// The type of index to generate for the document
 type DocumentIndex =
     /// A GIN index with standard operations (all operators supported)
@@ -23,6 +13,7 @@ module Configuration =
 
     open System.Text.Json
     open System.Text.Json.Serialization
+    open Npgsql.Documents
 
     /// The default JSON serializer options to use with the stock serializer
     let private jsonDefaultOpts =
@@ -58,7 +49,7 @@ module Configuration =
 
 
 /// Shorthand to retrieve the data source
-let private fromDataSource () =
+let internal fromDataSource () =
     Configuration.dataSource () |> Sql.fromDataSource
 
 
