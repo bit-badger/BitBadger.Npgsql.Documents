@@ -118,13 +118,73 @@ module Query =
     let insert tableName =
         $"INSERT INTO %s{tableName} (id, data) VALUES (@id, @data)"
 
-    /// Query to update a document
-    let update tableName =
-        $"UPDATE %s{tableName} SET data = @data WHERE id = @id"
-
     /// Query to save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
     let save tableName =
         $"INSERT INTO %s{tableName} (id, data) VALUES (@id, @data) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data"
+    
+    /// Queries for counting documents
+    module Count =
+        
+        /// Query to count all documents in a table
+        let all tableName =
+            $"SELECT COUNT(id) AS it FROM %s{tableName}"
+        
+        /// Query to count matching documents using a JSON containment query (@>)
+        let byContains tableName =
+            $"""SELECT COUNT(id) AS it FROM %s{tableName} WHERE {whereDataContains "@criteria"}"""
+        
+        /// Query to count matching documents using a JSON Path match (@?)
+        let byJsonPath tableName =
+            $"""SELECT COUNT(id) AS it FROM %s{tableName} WHERE {whereJsonPathMatches "@path"}"""
+    
+    /// Queries for determining document existence
+    module Exists =
+
+        /// Query to determine if a document exists for the given ID
+        let byId tableName =
+            $"SELECT EXISTS (SELECT 1 FROM %s{tableName} WHERE id = @id) AS it"
+
+        /// Query to determine if documents exist using a JSON containment query (@>)
+        let byContains tableName =
+            $"""SELECT EXISTS (SELECT 1 FROM %s{tableName} WHERE {whereDataContains "@criteria"}) AS it"""
+        
+        /// Query to determine if documents exist using a JSON Path match (@?)
+        let byJsonPath tableName =
+            $"""SELECT EXISTS (SELECT 1 FROM %s{tableName} WHERE {whereJsonPathMatches "@path"}) AS it"""
+    
+    /// Queries for retrieving documents
+    module Find =
+
+        /// Query to retrieve a document by its ID
+        let byId tableName =
+            $"{selectFromTable tableName} WHERE id = @id"
+        
+        /// Query to retrieve documents using a JSON containment query (@>)
+        let byContains tableName =
+            $"""{selectFromTable tableName} WHERE {whereDataContains "@criteria"}"""
+        
+        /// Query to retrieve documents using a JSON Path match (@?)
+        let byJsonPath tableName =
+            $"""{selectFromTable tableName} WHERE {whereJsonPathMatches "@path"}"""
+    
+    /// Queries to delete documents
+    module Delete =
+        
+        /// Query to delete a document by its ID
+        let byId tableName =
+            $"DELETE FROM %s{tableName} WHERE id = @id"
+
+        /// Query to delete documents using a JSON containment query (@>)
+        let byContains tableName =
+            $"""DELETE FROM %s{tableName} WHERE {whereDataContains "@criteria"}"""
+
+        /// Query to delete documents using a JSON Path match (@?)
+        let byJsonPath tableName =
+            $"""DELETE FROM %s{tableName} WHERE {whereJsonPathMatches "@path"}"""
+        
+    /// Query to update a document
+    let update tableName =
+        $"UPDATE %s{tableName} SET data = @data WHERE id = @id"
 
 
 /// Create a domain item from a document, specifying the field in which the document is found
@@ -176,20 +236,20 @@ module WithProps =
         /// Count all documents in a table
         let all tableName sqlProps : Task<int> =
             sqlProps
-            |> Sql.query $"SELECT COUNT(id) AS it FROM %s{tableName}"
+            |> Sql.query (Query.Count.all tableName)
             |> Sql.executeRowAsync (fun row -> row.int "it")
         
         /// Count matching documents using a JSON containment query (@>)
         let byContains tableName (criteria : obj) sqlProps : Task<int> =
             sqlProps
-            |> Sql.query $"""SELECT COUNT(id) AS it FROM %s{tableName} WHERE {Query.whereDataContains "@it"}"""
-            |> Sql.parameters [ "@it", Query.jsonbDocParam criteria ]
+            |> Sql.query (Query.Count.byContains tableName)
+            |> Sql.parameters [ "@criteria", Query.jsonbDocParam criteria ]
             |> Sql.executeRowAsync (fun row -> row.int "it")
 
         /// Count matching documents using a JSON Path match query (@?)
         let byJsonPath tableName jsonPath sqlProps : Task<int> =
             sqlProps
-            |> Sql.query $"""SELECT COUNT(id) AS it FROM %s{tableName} WHERE {Query.whereJsonPathMatches "@path"}"""
+            |> Sql.query (Query.Count.byJsonPath tableName)
             |> Sql.parameters [ "@path", Sql.string jsonPath ]
             |> Sql.executeRowAsync (fun row -> row.int "it")
     
@@ -200,22 +260,21 @@ module WithProps =
         /// Determine if a document exists for the given ID
         let byId tableName docId sqlProps : Task<bool> =
             sqlProps
-            |> Sql.query $"SELECT EXISTS (SELECT 1 FROM %s{tableName} WHERE id = @id) AS it"
+            |> Sql.query (Query.Exists.byId tableName)
             |> Sql.parameters [ "@id", Sql.string docId ]
             |> Sql.executeRowAsync (fun row -> row.bool "it")
 
         /// Determine if a document exists using a JSON containment query (@>)
         let byContains tableName (criteria : obj) sqlProps : Task<bool> =
             sqlProps
-            |> Sql.query $"""SELECT EXISTS (SELECT 1 FROM %s{tableName} WHERE {Query.whereDataContains "@it"}) AS it"""
-            |> Sql.parameters [ "@it", Query.jsonbDocParam criteria ]
+            |> Sql.query (Query.Exists.byContains tableName)
+            |> Sql.parameters [ "@criteria", Query.jsonbDocParam criteria ]
             |> Sql.executeRowAsync (fun row -> row.bool "it")
 
         /// Determine if a document exists using a JSON Path match query (@?)
         let byJsonPath tableName jsonPath sqlProps : Task<bool> =
             sqlProps
-            |> Sql.query
-                $"""SELECT EXISTS (SELECT 1 FROM %s{tableName} WHERE {Query.whereJsonPathMatches "@path"}) AS it"""
+            |> Sql.query (Query.Exists.byJsonPath tableName)
             |> Sql.parameters [ "@path", Sql.string jsonPath ]
             |> Sql.executeRowAsync (fun row -> row.bool "it")
 
@@ -227,7 +286,7 @@ module WithProps =
         let byId<'T> tableName docId sqlProps : Task<'T option> = backgroundTask {
             let! results =
                 sqlProps
-                |> Sql.query $"{Query.selectFromTable tableName} WHERE id = @id"
+                |> Sql.query (Query.Find.byId tableName)
                 |> Sql.parameters [ "@id", Sql.string docId ]
                 |> Sql.executeAsync fromData<'T>
             return List.tryHead results
@@ -236,14 +295,14 @@ module WithProps =
         /// Execute a JSON containment query (@>)
         let byContains<'T> tableName (criteria : obj) sqlProps : Task<'T list> =
             sqlProps
-            |> Sql.query $"""{Query.selectFromTable tableName} WHERE {Query.whereDataContains "@it"}"""
-            |> Sql.parameters [ "@it", Query.jsonbDocParam criteria ]
+            |> Sql.query (Query.Find.byContains tableName)
+            |> Sql.parameters [ "@criteria", Query.jsonbDocParam criteria ]
             |> Sql.executeAsync fromData<'T>
 
         /// Execute a JSON Path match query (@?)
         let byJsonPath<'T> tableName jsonPath sqlProps : Task<'T list> =
             sqlProps
-            |> Sql.query $"""{Query.selectFromTable tableName} WHERE {Query.whereJsonPathMatches "@path"}"""
+            |> Sql.query (Query.Find.byJsonPath tableName)
             |> Sql.parameters [ "@path", Sql.string jsonPath ]
             |> Sql.executeAsync fromData<'T>
 
@@ -253,16 +312,21 @@ module WithProps =
         
         /// Delete a document by its ID
         let byId tableName docId sqlProps =
-            executeNonQuery $"DELETE FROM %s{tableName} WHERE id = @id" docId {||} sqlProps
+            executeNonQuery (Query.Delete.byId tableName) docId {||} sqlProps
 
         /// Delete documents by matching a JSON contains query (@>)
-        let byContains tableName (criteria : obj) sqlProps =
-            executeNonQuery $"""DELETE FROM %s{tableName} WHERE {Query.whereDataContains "@data"}""" "" criteria
+        let byContains tableName (criteria : obj) sqlProps = backgroundTask {
+            let! _ =
                 sqlProps
+                |> Sql.query (Query.Delete.byContains tableName)
+                |> Sql.parameters [ "@criteria", Query.jsonbDocParam criteria ]
+                |> Sql.executeNonQueryAsync
+            ()
+        }
 
         /// Delete documents by matching a JSON Path match query (@?)
         let byJsonPath tableName path sqlProps = backgroundTask {
-            let _ =
+            let! _ =
                 sqlProps
                 |> Sql.query $"""DELETE FROM %s{tableName} WHERE {Query.whereJsonPathMatches "@path"}"""
                 |> Sql.parameters [ "@path", Sql.string path ]

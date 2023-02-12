@@ -76,14 +76,79 @@ let unitTests =
                 Expect.equal (Query.insert Db.tableName) $"INSERT INTO {Db.tableName} (id, data) VALUES (@id, @data)"
                     "INSERT statement not correct"
             }
-            test "update succeeds" {
-                Expect.equal (Query.update Db.tableName) $"UPDATE {Db.tableName} SET data = @data WHERE id = @id"
-                    "UPDATE statement not correct"
-            }
             test "save succeeds" {
                 Expect.equal (Query.save Db.tableName)
                     $"INSERT INTO {Db.tableName} (id, data) VALUES (@id, @data) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data"
                     "INSERT ON CONFLICT UPDATE statement not correct"
+            }
+            testList "Count" [
+                test "all succeeds" {
+                    Expect.equal (Query.Count.all Db.tableName) $"SELECT COUNT(id) AS it FROM {Db.tableName}"
+                        "Count query not correct"
+                }
+                test "byContains succeeds" {
+                    Expect.equal (Query.Count.byContains Db.tableName)
+                        $"SELECT COUNT(id) AS it FROM {Db.tableName} WHERE data @> @criteria"
+                        "JSON containment count query not correct"
+                }
+                test "byJsonPath succeeds" {
+                    Expect.equal (Query.Count.byJsonPath Db.tableName)
+                        $"SELECT COUNT(id) AS it FROM {Db.tableName} WHERE data @? @path::jsonpath"
+                        "JSON Path match count query not correct"
+                }
+            ]
+            testList "Exists" [
+                test "byId succeeds" {
+                    Expect.equal (Query.Exists.byId Db.tableName)
+                        $"SELECT EXISTS (SELECT 1 FROM {Db.tableName} WHERE id = @id) AS it"
+                        "ID existence query not correct"
+                }
+                test "byContains succeeds" {
+                    Expect.equal (Query.Exists.byContains Db.tableName)
+                        $"SELECT EXISTS (SELECT 1 FROM {Db.tableName} WHERE data @> @criteria) AS it"
+                        "JSON containment exists query not correct"
+                }
+                test "byJsonPath succeeds" {
+                    Expect.equal (Query.Exists.byJsonPath Db.tableName)
+                        $"SELECT EXISTS (SELECT 1 FROM {Db.tableName} WHERE data @? @path::jsonpath) AS it"
+                        "JSON Path match existence query not correct"
+                }
+            ]
+            testList "Find" [
+                test "byId succeeds" {
+                    Expect.equal (Query.Find.byId Db.tableName) $"SELECT data FROM {Db.tableName} WHERE id = @id"
+                        "SELECT by ID query not correct"
+                }
+                test "byContains succeeds" {
+                    Expect.equal (Query.Find.byContains Db.tableName)
+                        $"SELECT data FROM {Db.tableName} WHERE data @> @criteria"
+                        "SELECT by JSON containment query not correct"
+                }
+                test "byJsonPath succeeds" {
+                    Expect.equal (Query.Find.byJsonPath Db.tableName)
+                        $"SELECT data FROM {Db.tableName} WHERE data @? @path::jsonpath"
+                        "SELECT by JSON Path match query not correct"
+                }
+            ]
+            testList "Delete" [
+                test "byId succeeds" {
+                    Expect.equal (Query.Delete.byId Db.tableName) $"DELETE FROM {Db.tableName} WHERE id = @id"
+                        "DELETE by ID query not correct"
+                }
+                test "byContains succeeds" {
+                    Expect.equal (Query.Delete.byContains Db.tableName)
+                        $"DELETE FROM {Db.tableName} WHERE data @> @criteria"
+                        "DELETE by JSON containment query not correct"
+                }
+                test "byJsonPath succeeds" {
+                    Expect.equal (Query.Delete.byJsonPath Db.tableName)
+                        $"DELETE FROM {Db.tableName} WHERE data @? @path::jsonpath"
+                        "DELETE by JSON Path match query not correct"
+                }
+            ]
+            test "update succeeds" {
+                Expect.equal (Query.update Db.tableName) $"UPDATE {Db.tableName} SET data = @data WHERE id = @id"
+                    "UPDATE statement not correct"
             }
         ]
     ]
