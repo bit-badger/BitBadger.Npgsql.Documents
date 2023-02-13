@@ -52,6 +52,13 @@ module Configuration =
 let internal fromDataSource () =
     Configuration.dataSource () |> Sql.fromDataSource
 
+open System.Threading.Tasks
+
+/// Execute a task and ignore the result
+let internal ignoreTask<'T> (it : Task<'T>) = backgroundTask {
+    let! _ = it
+    ()
+}
 
 /// Data definition
 [<RequireQualifiedAccess>]
@@ -71,16 +78,12 @@ module Definition =
     module WithProps =
         
         /// Create a document table
-        let ensureTable name sqlProps = backgroundTask {
-            let! _ = sqlProps |> Sql.query (createTable name) |> Sql.executeNonQueryAsync
-            ()
-        }
+        let ensureTable name sqlProps =
+            sqlProps |> Sql.query (createTable name) |> Sql.executeNonQueryAsync |> ignoreTask
 
         /// Create an index on documents in the specified table
-        let ensureIndex name idxType sqlProps = backgroundTask {
-            let! _ = sqlProps |> Sql.query (createIndex name idxType) |> Sql.executeNonQueryAsync
-            ()
-        }
+        let ensureIndex name idxType sqlProps =
+            sqlProps |> Sql.query (createIndex name idxType) |> Sql.executeNonQueryAsync |> ignoreTask
     
     /// Create a document table
     let ensureTable name =
@@ -167,6 +170,25 @@ module Query =
         let byJsonPath tableName =
             $"""{selectFromTable tableName} WHERE {whereJsonPathMatches "@path"}"""
     
+    /// Queries to update documents
+    module Update =
+
+        /// Query to update a document
+        let full tableName =
+            $"UPDATE %s{tableName} SET data = @data WHERE id = @id"
+
+        /// Query to update a document
+        let partialById tableName =
+            $"UPDATE %s{tableName} SET data = data || @data WHERE id = @id"
+        
+        /// Query to update partial documents matching a JSON containment query (@>)
+        let partialByContains tableName =
+            $"""UPDATE %s{tableName} SET data = data || @data WHERE {whereDataContains "@criteria"}"""
+
+        /// Query to update partial documents matching a JSON containment query (@>)
+        let partialByJsonPath tableName =
+            $"""UPDATE %s{tableName} SET data = data || @data WHERE {whereJsonPathMatches "@path"}"""
+
     /// Queries to delete documents
     module Delete =
         
@@ -182,10 +204,6 @@ module Query =
         let byJsonPath tableName =
             $"""DELETE FROM %s{tableName} WHERE {whereJsonPathMatches "@path"}"""
         
-    /// Query to update a document
-    let update tableName =
-        $"UPDATE %s{tableName} SET data = @data WHERE id = @id"
-
 
 /// Create a domain item from a document, specifying the field in which the document is found
 let fromDocument<'T> field (row : RowReader) : 'T =
@@ -196,17 +214,13 @@ let fromData<'T> row : 'T =
     fromDocument "data" row
 
 /// Execute a non-query statement to manipulate a document
-let private executeNonQuery query docId (document : 'T) sqlProps = backgroundTask {
-    let! _ =
-        sqlProps
-        |> Sql.query query
-        |> Sql.parameters (Query.docParameters docId document)
-        |> Sql.executeNonQueryAsync
-    ()
-}
+let private executeNonQuery query docId (document : 'T) sqlProps =
+    sqlProps
+    |> Sql.query query
+    |> Sql.parameters (Query.docParameters docId document)
+    |> Sql.executeNonQueryAsync
+    |> ignoreTask
 
-
-open System.Threading.Tasks
 
 /// Versions of queries that accept SqlProps as the last parameter
 module WithProps =
@@ -221,15 +235,11 @@ module WithProps =
     let insert<'T> tableName docId (document : 'T) sqlProps =
         executeNonQuery (Query.insert tableName) docId document sqlProps
 
-    /// Update a document
-    let update<'T> tableName docId (document : 'T) sqlProps =
-        executeNonQuery (Query.update tableName) docId document sqlProps
-
     /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
     let save<'T> tableName docId (document : 'T) sqlProps =
         executeNonQuery (Query.save tableName) docId document sqlProps
 
-    /// Queries to count documents
+    /// Commands to count documents
     [<RequireQualifiedAccess>]
     module Count =
         
@@ -253,7 +263,7 @@ module WithProps =
             |> Sql.parameters [ "@path", Sql.string jsonPath ]
             |> Sql.executeRowAsync (fun row -> row.int "it")
     
-    /// Queries to determine if documents exist
+    /// Commands to determine if documents exist
     [<RequireQualifiedAccess>]
     module Exists =
 
@@ -278,7 +288,7 @@ module WithProps =
             |> Sql.parameters [ "@path", Sql.string jsonPath ]
             |> Sql.executeRowAsync (fun row -> row.bool "it")
 
-    /// Queries to determine if documents exist
+    /// Commands to determine if documents exist
     [<RequireQualifiedAccess>]
     module Find =
         
@@ -306,7 +316,35 @@ module WithProps =
             |> Sql.parameters [ "@path", Sql.string jsonPath ]
             |> Sql.executeAsync fromData<'T>
 
-    /// Queries to delete documents
+    /// Commands to update documents
+    [<RequireQualifiedAccess>]
+    module Update =
+        
+        /// Update an entire document
+        let full<'T> tableName docId (document : 'T) sqlProps =
+            executeNonQuery (Query.Update.full tableName) docId document sqlProps
+        
+        /// Update a partial document
+        let partialById tableName docId (partial : obj) sqlProps =
+            executeNonQuery (Query.Update.partialById tableName) docId partial sqlProps
+        
+        /// Update partial documents using a JSON containment query in the WHERE clause (@>)
+        let partialByContains tableName (criteria : obj) (partial : obj) sqlProps =
+            sqlProps
+            |> Sql.query (Query.Update.partialByContains tableName)
+            |> Sql.parameters [ "@data", Query.jsonbDocParam partial; "@criteria", Query.jsonbDocParam criteria ]
+            |> Sql.executeNonQueryAsync
+            |> ignoreTask 
+        
+        /// Update partial documents using a JSON Path match query in the WHERE clause (@?)
+        let partialByJsonPath tableName jsonPath (partial : obj) sqlProps =
+            sqlProps
+            |> Sql.query (Query.Update.partialByJsonPath tableName)
+            |> Sql.parameters [ "@data", Query.jsonbDocParam partial; "@path", Sql.string jsonPath ]
+            |> Sql.executeNonQueryAsync
+            |> ignoreTask 
+
+    /// Commands to delete documents
     [<RequireQualifiedAccess>]
     module Delete =
         
@@ -315,24 +353,20 @@ module WithProps =
             executeNonQuery (Query.Delete.byId tableName) docId {||} sqlProps
 
         /// Delete documents by matching a JSON contains query (@>)
-        let byContains tableName (criteria : obj) sqlProps = backgroundTask {
-            let! _ =
-                sqlProps
-                |> Sql.query (Query.Delete.byContains tableName)
-                |> Sql.parameters [ "@criteria", Query.jsonbDocParam criteria ]
-                |> Sql.executeNonQueryAsync
-            ()
-        }
+        let byContains tableName (criteria : obj) sqlProps =
+            sqlProps
+            |> Sql.query (Query.Delete.byContains tableName)
+            |> Sql.parameters [ "@criteria", Query.jsonbDocParam criteria ]
+            |> Sql.executeNonQueryAsync
+            |> ignoreTask
 
         /// Delete documents by matching a JSON Path match query (@?)
-        let byJsonPath tableName path sqlProps = backgroundTask {
-            let! _ =
-                sqlProps
-                |> Sql.query $"""DELETE FROM %s{tableName} WHERE {Query.whereJsonPathMatches "@path"}"""
-                |> Sql.parameters [ "@path", Sql.string path ]
-                |> Sql.executeNonQueryAsync
-            ()
-        }
+        let byJsonPath tableName path sqlProps =
+            sqlProps
+            |> Sql.query $"""DELETE FROM %s{tableName} WHERE {Query.whereJsonPathMatches "@path"}"""
+            |> Sql.parameters [ "@path", Sql.string path ]
+            |> Sql.executeNonQueryAsync
+            |> ignoreTask
 
 
 /// Retrieve all documents in the given table
@@ -342,10 +376,6 @@ let all<'T> tableName =
 /// Insert a new document
 let insert<'T> tableName docId (document : 'T) =
     WithProps.insert tableName docId document (fromDataSource ())
-
-/// Update a document
-let update<'T> tableName docId (document : 'T) =
-    WithProps.update<'T> tableName docId document (fromDataSource ())
 
 /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
 let save<'T> tableName docId (document : 'T) =
@@ -386,7 +416,7 @@ module Exists =
         WithProps.Exists.byJsonPath tableName jsonPath (fromDataSource ())
 
 
-/// Queries to retrieve documents
+/// Commands to retrieve documents
 [<RequireQualifiedAccess>]
 module Find =
     
@@ -402,7 +432,28 @@ module Find =
         WithProps.Find.byJsonPath<'T> tableName jsonPath (fromDataSource ())
 
 
-/// Queries to delete documents
+/// Commands to update documents
+[<RequireQualifiedAccess>]
+module Update =
+
+    /// Update a full document
+    let full<'T> tableName docId (document : 'T) =
+        WithProps.Update.full<'T> tableName docId document (fromDataSource ())
+
+    /// Update a partial document
+    let partialById tableName docId (partial : obj) =
+        WithProps.Update.partialById tableName docId partial (fromDataSource ())
+    
+    /// Update partial documents using a JSON containment query in the WHERE clause (@>)
+    let partialByContains tableName (criteria : obj) (partial : obj) =
+        WithProps.Update.partialByContains tableName criteria partial (fromDataSource ())
+    
+    /// Update partial documents using a JSON Path match query in the WHERE clause (@?)
+    let partialByJsonPath tableName jsonPath (partial : obj) =
+        WithProps.Update.partialByJsonPath tableName jsonPath partial (fromDataSource ())
+
+
+/// Commands to delete documents
 [<RequireQualifiedAccess>]
 module Delete =
     

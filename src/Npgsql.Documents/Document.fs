@@ -26,15 +26,11 @@ module WithProps =
     let Insert<'T> (tableName : string, docId : string, document : 'T, sqlProps : Sql.SqlProps) =
         FS.WithProps.insert tableName docId document sqlProps
 
-    /// Update a document
-    let Update<'T> (tableName : string, docId : string, document : 'T, sqlProps : Sql.SqlProps) =
-        FS.WithProps.update tableName docId document sqlProps
-
     /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
     let Save<'T> (tableName : string, docId : string, document : 'T, sqlProps : Sql.SqlProps) =
         FS.WithProps.save tableName docId document sqlProps
 
-    /// Queries to count documents
+    /// Commands to count documents
     module Count =
         
         /// Count all documents in a table
@@ -49,7 +45,7 @@ module WithProps =
         let ByJsonPath (tableName : string, jsonPath : string, sqlProps : Sql.SqlProps) : Task<int> =
             FS.WithProps.Count.byJsonPath tableName jsonPath sqlProps
     
-    /// Queries to determine if documents exist
+    /// Commands to determine if documents exist
     module Exists =
 
         /// Determine if a document exists for the given ID
@@ -64,7 +60,7 @@ module WithProps =
         let ByJsonPath (tableName : string, jsonPath : string, sqlProps : Sql.SqlProps) : Task<bool> =
             FS.WithProps.Exists.byJsonPath tableName jsonPath sqlProps
 
-    /// Queries to determine if documents exist
+    /// Commands to determine if documents exist
     module Find =
         
         /// Retrieve a document by its ID (may return null)
@@ -87,6 +83,25 @@ module WithProps =
             let! result = FS.WithProps.Find.byJsonPath tableName jsonPath sqlProps
             return ResizeArray result
         }
+
+    /// Commands to update documents
+    module Update =
+        
+        /// Update a document
+        let Full<'T> (tableName : string, docId : string, document : 'T, sqlProps : Sql.SqlProps) =
+            FS.WithProps.Update.full tableName docId document sqlProps
+
+        /// Update a partial document
+        let PartialById (tableName : string, docId : string, partial : obj, sqlProps : Sql.SqlProps) =
+            FS.WithProps.Update.partialById tableName docId partial sqlProps
+
+        /// Update partial documents using a JSON containment query in the WHERE clause (@>)
+        let PartialByContains (tableName : string, criteria : obj, partial : obj, sqlProps : Sql.SqlProps) =
+            FS.WithProps.Update.partialByContains tableName criteria partial sqlProps
+        
+        /// Update partial documents using a JSON Path match query in the WHERE clause (@?)
+        let PartialByJsonPath (tableName : string, jsonPath : string, partial : obj, sqlProps : Sql.SqlProps) =
+            FS.WithProps.Update.partialByJsonPath tableName jsonPath partial sqlProps
 
     /// Queries to delete documents
     module Delete =
@@ -111,10 +126,6 @@ let All<'T> (tableName : string) =
 /// Insert a new document
 let Insert<'T> (tableName : string, docId : string, document : 'T) =
     WithProps.Insert (tableName, docId, document, FS.fromDataSource ())
-
-/// Update a document
-let Update<'T> (tableName : string, docId : string, document : 'T) =
-    WithProps.Update<'T> (tableName, docId, document, FS.fromDataSource ())
 
 /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
 let Save<'T> (tableName : string, docId : string, document : 'T) =
@@ -166,6 +177,26 @@ module Find =
 
     let ByJsonPath<'T> (tableName : string, jsonPath : string) =
         WithProps.Find.ByJsonPath<'T> (tableName, jsonPath, FS.fromDataSource ())
+
+
+/// Commands to update documents
+module Update =
+    
+    /// Update a document
+    let Full<'T> (tableName : string, docId : string, document : 'T) =
+        WithProps.Update.Full (tableName, docId, document, FS.fromDataSource ())
+
+    /// Update a partial document
+    let PartialById (tableName : string, docId : string, partial : obj) =
+        WithProps.Update.PartialById (tableName, docId, partial, FS.fromDataSource ())
+
+    /// Update partial documents using a JSON containment query in the WHERE clause (@>)
+    let PartialByContains (tableName : string, criteria : obj, partial : obj) =
+        WithProps.Update.PartialByContains (tableName, criteria, partial, FS.fromDataSource ())
+    
+    /// Update partial documents using a JSON Path match query in the WHERE clause (@?)
+    let PartialByJsonPath (tableName : string, jsonPath : string, partial : obj) =
+        WithProps.Update.PartialByJsonPath (tableName, jsonPath, partial, FS.fromDataSource ())
 
 
 /// Queries to delete documents

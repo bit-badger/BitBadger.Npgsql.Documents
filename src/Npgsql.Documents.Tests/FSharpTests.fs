@@ -130,6 +130,27 @@ let unitTests =
                         "SELECT by JSON Path match query not correct"
                 }
             ]
+            testList "Update" [
+                test "full succeeds" {
+                    Expect.equal (Query.Update.full Db.tableName)
+                        $"UPDATE {Db.tableName} SET data = @data WHERE id = @id" "UPDATE full statement not correct"
+                }
+                test "partialById succeeds" {
+                    Expect.equal (Query.Update.partialById Db.tableName)
+                        $"UPDATE {Db.tableName} SET data = data || @data WHERE id = @id"
+                        "UPDATE partial by ID statement not correct"
+                }
+                test "partialByContains succeeds" {
+                    Expect.equal (Query.Update.partialByContains Db.tableName)
+                        $"UPDATE {Db.tableName} SET data = data || @data WHERE data @> @criteria"
+                        "UPDATE partial by JSON containment statement not correct"
+                }
+                test "partialByJsonPath succeeds" {
+                    Expect.equal (Query.Update.partialByJsonPath Db.tableName)
+                        $"UPDATE {Db.tableName} SET data = data || @data WHERE data @? @path::jsonpath"
+                        "UPDATE partial by JSON Path statement not correct"
+                }
+            ]
             testList "Delete" [
                 test "byId succeeds" {
                     Expect.equal (Query.Delete.byId Db.tableName) $"DELETE FROM {Db.tableName} WHERE id = @id"
@@ -146,12 +167,10 @@ let unitTests =
                         "DELETE by JSON Path match query not correct"
                 }
             ]
-            test "update succeeds" {
-                Expect.equal (Query.update Db.tableName) $"UPDATE {Db.tableName} SET data = @data WHERE id = @id"
-                    "UPDATE statement not correct"
-            }
         ]
     ]
+
+let isTrue<'T> (_ : 'T) = true
 
 let integrationTests =
     let documents = [
@@ -235,30 +254,6 @@ let integrationTests =
                 Expect.throws (fun () ->
                     insert Db.tableName "test" {Foo = "oof"; Bar = "" } |> Async.AwaitTask |> Async.RunSynchronously)
                     "An exception should have been raised for duplicate document ID insert"
-            }
-        ]
-        testList "update" [
-            testTask "succeeds when a document is updated" {
-                use db = Db.buildDatabase ()
-                do! insert Db.tableName "test" { Foo = "green"; Bar = "" }
-
-                let! before = Find.byId<SubDocument> Db.tableName "test"
-                if Option.isNone before then Expect.isTrue false "There should have been a document returned"
-                Expect.equal before.Value { Foo = "green"; Bar = "" } "The document is not correct"
-
-                do! update Db.tableName "test" { Foo = "blue"; Bar = "red" }
-                let! after = Find.byId<SubDocument> Db.tableName "test"
-                if Option.isNone after then Expect.isTrue false "There should have been a document returned post-update"
-                Expect.equal after.Value { Foo = "blue"; Bar = "red" } "The updated document is not correct"
-            }
-            testTask "succeeds when no document is updated" {
-                use db = Db.buildDatabase ()
-
-                let! before = Find.byId<SubDocument> Db.tableName "test"
-                Expect.isNone before "There should not have been a document returned"
-                
-                // This not raising an exception is the test
-                do! update Db.tableName "test" { Foo = "blue"; Bar = "red" }
             }
         ]
         testList "save" [
@@ -406,6 +401,88 @@ let integrationTests =
 
                     let! docs = Find.byJsonPath<JsonDocument> Db.tableName "$.NumValue ? (@ < 0)"
                     Expect.isTrue (List.isEmpty docs) "There should have been no documents returned"
+                }
+            ]
+        ]
+        testList "Update" [
+            testList "full" [
+                testTask "succeeds when a document is updated" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    do! Update.full Db.tableName "one" { Foo = "blue"; Bar = "red" }
+                    let! after = Find.byId<SubDocument> Db.tableName "one"
+                    if Option.isNone after then
+                        Expect.isTrue false "There should have been a document returned post-update"
+                    Expect.equal after.Value { Foo = "blue"; Bar = "red" } "The updated document is not correct"
+                }
+                testTask "succeeds when no document is updated" {
+                    use db = Db.buildDatabase ()
+
+                    let! before = all<SubDocument> Db.tableName
+                    Expect.hasCountOf before 0u isTrue "There should have been no documents returned"
+                    
+                    // This not raising an exception is the test
+                    do! Update.full Db.tableName "test" { Foo = "blue"; Bar = "red" }
+                }
+            ]
+            testList "partialById" [
+                testTask "succeeds when a document is updated" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+                    
+                    do! Update.partialById Db.tableName "one" {| NumValue = 44 |}
+                    let! after = Find.byId<JsonDocument> Db.tableName "one"
+                    if Option.isNone after then
+                        Expect.isTrue false "There should have been a document returned post-update"
+                    Expect.equal after.Value.NumValue 44 "The updated document is not correct"
+                }
+                testTask "succeeds when no document is updated" {
+                    use db = Db.buildDatabase ()
+
+                    let! before = all<SubDocument> Db.tableName
+                    Expect.hasCountOf before 0u isTrue "There should have been no documents returned"
+                    
+                    // This not raising an exception is the test
+                    do! Update.partialById Db.tableName "test" {| Foo = "green" |}
+                }
+            ]
+            testList "partialByContains" [
+                testTask "succeeds when a document is updated" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+                    
+                    do! Update.partialByContains Db.tableName {| Value = "purple" |} {| NumValue = 77 |}
+                    let! after = Count.byContains Db.tableName {| NumValue = 77 |}
+                    Expect.equal after 2 "There should have been 2 documents returned"
+                }
+                testTask "succeeds when no document is updated" {
+                    use db = Db.buildDatabase ()
+
+                    let! before = all<SubDocument> Db.tableName
+                    Expect.hasCountOf before 0u isTrue "There should have been no documents returned"
+                    
+                    // This not raising an exception is the test
+                    do! Update.partialByContains Db.tableName {| Value = "burgundy" |} {| Foo = "green" |}
+                }
+            ]
+            testList "partialByJsonPath" [
+                testTask "succeeds when a document is updated" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+                    
+                    do! Update.partialByJsonPath Db.tableName "$.NumValue ? (@ > 10)" {| NumValue = 1000 |}
+                    let! after = Count.byJsonPath Db.tableName "$.NumValue ? (@ > 999)"
+                    Expect.equal after 2 "There should have been 2 documents returned"
+                }
+                testTask "succeeds when no document is updated" {
+                    use db = Db.buildDatabase ()
+
+                    let! before = all<SubDocument> Db.tableName
+                    Expect.hasCountOf before 0u isTrue "There should have been no documents returned"
+                    
+                    // This not raising an exception is the test
+                    do! Update.partialByContains Db.tableName {| Value = "burgundy" |} {| Foo = "green" |}
                 }
             ]
         ]
