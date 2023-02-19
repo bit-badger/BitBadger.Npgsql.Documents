@@ -225,6 +225,27 @@ let integrationTests =
                     "An exception should have been raised for duplicate document ID insert"
             }
         ]
+        testList "Document.InsertFunc" [
+            testTask "succeeds" {
+                use db = Db.buildDatabase ()
+                let! before = Find.All<SubDocument> Db.tableName
+                Expect.hasCountOf before 0u isTrue "There should be no documents in the table"
+
+                do! InsertFunc (Db.tableName, System.Func<JsonDocument, string> (fun it -> it.Id),
+                                JsonDocument (Id = "turkey", Value = "", NumValue = 0, Sub = None))
+                let! after = Find.All<SubDocument> Db.tableName
+                Expect.hasCountOf after 1u isTrue "There should have been one document inserted"
+            }
+            testTask "fails for duplicate key" {
+                use db = Db.buildDatabase ()
+                do! Insert (Db.tableName, "test", JsonDocument (Id = "test"))
+                Expect.throws (fun () ->
+                    InsertFunc (Db.tableName, System.Func<JsonDocument, string> (fun it -> it.Id),
+                                JsonDocument (Id = "test", Value = "double"))
+                    |> Async.AwaitTask |> Async.RunSynchronously)
+                    "An exception should have been raised for duplicate document ID insert"
+            }
+        ]
         testList "Document.Save" [
             testTask "succeeds when a document is inserted" {
                 use db = Db.buildDatabase ()
@@ -249,6 +270,34 @@ let integrationTests =
                 if isNull after then Expect.isTrue false "There should have been a document returned post-update"
                 Expect.equal (after :> SubDocument).Foo "c" "The updated document is not correct"
                 Expect.equal (after :> SubDocument).Bar "d" "The updated document is not correct"
+            }
+        ]
+        testList "Document.SaveFunc" [
+            testTask "succeeds when a document is inserted" {
+                use db = Db.buildDatabase ()
+                let! before = Find.All<SubDocument> Db.tableName
+                Expect.hasCountOf before 0u isTrue "There should be no documents in the table"
+
+                do! SaveFunc (Db.tableName, System.Func<JsonDocument, string> (fun it -> it.Id),
+                              JsonDocument (Id = "test", Value = "fresh"))
+                let! after = Find.All<SubDocument> Db.tableName
+                Expect.hasCountOf after 1u isTrue "There should have been one document inserted"
+            }
+            testTask "succeeds when a document is updated" {
+                use db = Db.buildDatabase ()
+                do! Insert (Db.tableName, "test", JsonDocument (Id = "test", Value = "original"))
+
+                let! before = Find.ById<JsonDocument> (Db.tableName, "test")
+                if isNull before then Expect.isTrue false "There should have been a document returned"
+                Expect.equal (before :> JsonDocument).Id "test" "The document is not correct"
+                Expect.equal (before :> JsonDocument).Value "original" "The document is not correct"
+
+                do! SaveFunc (Db.tableName, System.Func<JsonDocument, string> (fun it -> it.Id),
+                              JsonDocument (Id = "test", Value = "updated"))
+                let! after = Find.ById<JsonDocument> (Db.tableName, "test")
+                if isNull after then Expect.isTrue false "There should have been a document returned post-update"
+                Expect.equal (after :> JsonDocument).Id "test" "The updated document is not correct"
+                Expect.equal (after :> JsonDocument).Value "updated" "The updated document is not correct"
             }
         ]
         testList "Document.Count" [
@@ -393,7 +442,7 @@ let integrationTests =
             ]
         ]
         testList "Document.Update" [
-            testList "full" [
+            testList "Full" [
                 testTask "succeeds when a document is updated" {
                     use db = Db.buildDatabase ()
                     do! Insert (Db.tableName, "test", SubDocument (Foo = "green", Bar = ""))
@@ -417,6 +466,34 @@ let integrationTests =
                     
                     // This not raising an exception is the test
                     do! Update.Full (Db.tableName, "test", {| Foo = "blue"; Bar = "red" |})
+                }
+            ]
+            testList "FullFunc" [
+                testTask "succeeds when a document is updated" {
+                    use db = Db.buildDatabase ()
+                    do! Insert (Db.tableName, "green", JsonDocument (Id = "green", Value = "lime"))
+
+                    let! before = Find.ById<JsonDocument> (Db.tableName, "green")
+                    if isNull before then Expect.isTrue false "There should have been a document returned"
+                    Expect.equal (before :> JsonDocument).Id "green" "The document is not correct"
+                    Expect.equal (before :> JsonDocument).Value "lime" "The document is not correct"
+
+                    do! Update.FullFunc (Db.tableName, System.Func<JsonDocument, string> (fun it -> it.Id),
+                                         JsonDocument (Id = "green", Value = "primary"))
+                    let! after = Find.ById<JsonDocument> (Db.tableName, "green")
+                    if isNull after then Expect.isTrue false "There should have been a document returned post-update"
+                    Expect.equal (after :> JsonDocument).Id "green" "The updated document is not correct"
+                    Expect.equal (after :> JsonDocument).Value "primary" "The updated document is not correct"
+                }
+                testTask "succeeds when no document is updated" {
+                    use db = Db.buildDatabase ()
+
+                    let! before = Find.All<SubDocument> Db.tableName
+                    Expect.hasCountOf before 0u isTrue "There should have been no documents returned"
+                    
+                    // This not raising an exception is the test
+                    do! Update.FullFunc (Db.tableName, System.Func<SubDocument, string> (fun _ -> "test"),
+                                         SubDocument(Foo = "blue", Bar = "red"))
                 }
             ]
             testList "PartialById" [

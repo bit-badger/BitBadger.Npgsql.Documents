@@ -229,9 +229,17 @@ module WithProps =
     let insert<'T> tableName docId (document : 'T) sqlProps =
         executeNonQuery (Query.insert tableName) docId document sqlProps
 
+    /// Insert a new document
+    let insertFunc<'T> tableName (idFunc : 'T -> string) (document : 'T) sqlProps =
+        insert<'T> tableName (idFunc document) document sqlProps
+
     /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
     let save<'T> tableName docId (document : 'T) sqlProps =
         executeNonQuery (Query.save tableName) docId document sqlProps
+
+    /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
+    let saveFunc<'T> tableName (idFunc : 'T -> string) (document : 'T) sqlProps =
+        save tableName (idFunc document) document sqlProps
 
     /// Commands to count documents
     [<RequireQualifiedAccess>]
@@ -324,6 +332,10 @@ module WithProps =
         let full<'T> tableName docId (document : 'T) sqlProps =
             executeNonQuery (Query.Update.full tableName) docId document sqlProps
         
+        /// Update an entire document
+        let fullFunc<'T> tableName (idFunc : 'T -> string) (document : 'T) sqlProps =
+            full tableName (idFunc document) document sqlProps
+        
         /// Update a partial document
         let partialById tableName docId (partial : obj) sqlProps =
             executeNonQuery (Query.Update.partialById tableName) docId partial sqlProps
@@ -373,9 +385,17 @@ module WithProps =
 let insert<'T> tableName docId (document : 'T) =
     WithProps.insert tableName docId document (fromDataSource ())
 
+/// Insert a new document
+let insertFunc<'T> tableName idFunc (document : 'T) =
+    WithProps.insertFunc tableName idFunc document (fromDataSource ())
+
 /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
 let save<'T> tableName docId (document : 'T) =
     WithProps.save<'T> tableName docId document (fromDataSource ())
+
+/// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
+let saveFunc<'T> tableName idFunc (document : 'T) =
+    WithProps.saveFunc<'T> tableName idFunc document (fromDataSource ())
 
 
 /// Queries to count documents
@@ -439,6 +459,10 @@ module Update =
     /// Update a full document
     let full<'T> tableName docId (document : 'T) =
         WithProps.Update.full<'T> tableName docId document (fromDataSource ())
+
+    /// Update a full document
+    let fullFunc<'T> tableName idFunc (document : 'T) =
+        WithProps.Update.fullFunc<'T> tableName idFunc document (fromDataSource ())
 
     /// Update a partial document
     let partialById tableName docId (partial : obj) =

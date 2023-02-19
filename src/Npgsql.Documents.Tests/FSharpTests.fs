@@ -18,6 +18,8 @@ type JsonDocument =
         Sub : SubDocument option
     }
 
+let emptyDoc = { Id = ""; Value = ""; NumValue = 0; Sub = None }
+
 /// Tests which do not hit the database
 let unitTests =
     testList "Unit" [
@@ -224,13 +226,32 @@ let integrationTests =
 
                 do! insert Db.tableName "turkey" { Foo = "gobble"; Bar = "gobble" }
                 let! after = Find.all<SubDocument> Db.tableName
-                Expect.equal after [ { Foo = "gobble"; Bar = "gobble"} ] "There should have been one document inserted"
+                Expect.equal after [ { Foo = "gobble"; Bar = "gobble" } ] "There should have been one document inserted"
             }
             testTask "fails for duplicate key" {
                 use db = Db.buildDatabase ()
                 do! insert Db.tableName "test" { Foo = "blah"; Bar = "" }
                 Expect.throws (fun () ->
                     insert Db.tableName "test" {Foo = "oof"; Bar = "" } |> Async.AwaitTask |> Async.RunSynchronously)
+                    "An exception should have been raised for duplicate document ID insert"
+            }
+        ]
+        testList "insertFunc" [
+            testTask "succeeds" {
+                use db = Db.buildDatabase ()
+                let! before = Find.all<JsonDocument> Db.tableName
+                Expect.equal before [] "There should be no documents in the table"
+
+                do! insertFunc Db.tableName (fun it -> it.Id) { emptyDoc with Id = "turkey" }
+                let! after = Find.all<JsonDocument> Db.tableName
+                Expect.equal after [ { emptyDoc with Id = "turkey" } ] "There should have been one document inserted"
+            }
+            testTask "fails for duplicate key" {
+                use db = Db.buildDatabase ()
+                do! insert Db.tableName "test" { emptyDoc with Id = "test" }
+                Expect.throws (fun () ->
+                    insertFunc Db.tableName (fun it -> it.Id) { emptyDoc with Id = "test" }
+                    |> Async.AwaitTask |> Async.RunSynchronously)
                     "An exception should have been raised for duplicate document ID insert"
             }
         ]
@@ -256,6 +277,31 @@ let integrationTests =
                 let! after = Find.byId<SubDocument> Db.tableName "test"
                 if Option.isNone after then Expect.isTrue false "There should have been a document returned post-update"
                 Expect.equal after.Value { Foo = "c"; Bar = "d" } "The updated document is not correct"
+            }
+        ]
+        testList "saveFunc" [
+            testTask "succeeds when a document is inserted" {
+                use db = Db.buildDatabase ()
+                let! before = Find.all<JsonDocument> Db.tableName
+                Expect.equal before [] "There should be no documents in the table"
+
+                do! saveFunc Db.tableName (fun it -> it.Id) { emptyDoc with Id = "a" }
+                let! after = Find.all<JsonDocument> Db.tableName
+                Expect.equal after [ { emptyDoc with Id = "a" } ] "There should have been one document inserted"
+            }
+            testTask "succeeds when a document is updated" {
+                use db = Db.buildDatabase ()
+                do! insert Db.tableName "test" { emptyDoc with Id = "test" }
+
+                let! before = Find.byId<JsonDocument> Db.tableName "test"
+                if Option.isNone before then Expect.isTrue false "There should have been a document returned"
+                Expect.equal before.Value { emptyDoc with Id = "test" } "The document is not correct"
+
+                do! saveFunc Db.tableName (fun it -> it.Id) { emptyDoc with Id = "test"; Value = "updated" }
+                let! after = Find.byId<JsonDocument> Db.tableName "test"
+                if Option.isNone after then Expect.isTrue false "There should have been a document returned post-update"
+                Expect.equal after.Value { emptyDoc with Id = "test"; Value = "updated" }
+                    "The updated document is not correct"
             }
         ]
         testList "Count" [
@@ -424,6 +470,30 @@ let integrationTests =
                     
                     // This not raising an exception is the test
                     do! Update.full Db.tableName "test" { Foo = "blue"; Bar = "red" }
+                }
+            ]
+            testList "fullFunc" [
+                testTask "succeeds when a document is updated" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    do! Update.fullFunc Db.tableName (fun it -> it.Id)
+                            { Id = "one"; Value = "le un"; NumValue = 1; Sub = None }
+                    let! after = Find.byId<JsonDocument> Db.tableName "one"
+                    if Option.isNone after then
+                        Expect.isTrue false "There should have been a document returned post-update"
+                    Expect.equal after.Value { Id = "one"; Value = "le un"; NumValue = 1; Sub = None }
+                        "The updated document is not correct"
+                }
+                testTask "succeeds when no document is updated" {
+                    use db = Db.buildDatabase ()
+
+                    let! before = Find.all<SubDocument> Db.tableName
+                    Expect.hasCountOf before 0u isTrue "There should have been no documents returned"
+                    
+                    // This not raising an exception is the test
+                    do! Update.fullFunc Db.tableName (fun it -> it.Id)
+                            { Id = "one"; Value = "le un"; NumValue = 1; Sub = None }
                 }
             ]
             testList "partialById" [

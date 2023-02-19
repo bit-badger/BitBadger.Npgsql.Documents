@@ -20,9 +20,17 @@ module WithProps =
     let Insert<'T> (tableName : string, docId : string, document : 'T, sqlProps : Sql.SqlProps) =
         FS.WithProps.insert tableName docId document sqlProps
 
+    /// Insert a new document
+    let InsertFunc<'T> (tableName : string, idFunc : System.Func<'T, string>, document : 'T, sqlProps : Sql.SqlProps) =
+        FS.WithProps.insert tableName (idFunc.Invoke document) document sqlProps
+
     /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
     let Save<'T> (tableName : string, docId : string, document : 'T, sqlProps : Sql.SqlProps) =
         FS.WithProps.save tableName docId document sqlProps
+
+    /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
+    let SaveFunc<'T> (tableName : string, idFunc : System.Func<'T, string>, document : 'T, sqlProps : Sql.SqlProps) =
+        FS.WithProps.save tableName (idFunc.Invoke document) document sqlProps
 
     /// Commands to count documents
     module Count =
@@ -91,6 +99,11 @@ module WithProps =
         let Full<'T> (tableName : string, docId : string, document : 'T, sqlProps : Sql.SqlProps) =
             FS.WithProps.Update.full tableName docId document sqlProps
 
+        /// Update a document
+        let FullFunc<'T> (tableName : string, idFunc : System.Func<'T, string>, document : 'T,
+                          sqlProps : Sql.SqlProps) =
+            FS.WithProps.Update.full tableName (idFunc.Invoke document) document sqlProps
+
         /// Update a partial document
         let PartialById (tableName : string, docId : string, partial : obj, sqlProps : Sql.SqlProps) =
             FS.WithProps.Update.partialById tableName docId partial sqlProps
@@ -123,9 +136,17 @@ module WithProps =
 let Insert<'T> (tableName : string, docId : string, document : 'T) =
     WithProps.Insert (tableName, docId, document, FS.fromDataSource ())
 
+/// Insert a new document
+let InsertFunc<'T> (tableName : string, idFunc : System.Func<'T, string>, document : 'T) =
+    WithProps.InsertFunc (tableName, idFunc, document, FS.fromDataSource ())
+
 /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
 let Save<'T> (tableName : string, docId : string, document : 'T) =
     WithProps.Save<'T> (tableName, docId, document, FS.fromDataSource ())
+
+/// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
+let SaveFunc<'T> (tableName : string, idFunc : System.Func<'T, string>, document : 'T) =
+    WithProps.SaveFunc<'T> (tableName, idFunc, document, FS.fromDataSource ())
 
 
 /// Queries to count documents
@@ -185,6 +206,10 @@ module Update =
     /// Update a document
     let Full<'T> (tableName : string, docId : string, document : 'T) =
         WithProps.Update.Full (tableName, docId, document, FS.fromDataSource ())
+
+    /// Update a document
+    let FullFunc<'T> (tableName : string, idFunc : System.Func<'T, string>, document : 'T) =
+        WithProps.Update.FullFunc (tableName, idFunc, document, FS.fromDataSource ())
 
     /// Update a partial document
     let PartialById (tableName : string, docId : string, partial : obj) =
