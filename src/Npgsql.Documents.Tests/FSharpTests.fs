@@ -216,36 +216,14 @@ let integrationTests =
                 // TODO: check for GIN(jsonp_path_ops), write test for "full" index that checks for their absence
             }
         ]
-        testList "all" [
-            testTask "succeeds when there is data" {
-                use db = Db.buildDatabase ()
-
-                do! insert Db.tableName "abc" { Foo = "one"; Bar = "two" }
-                do! insert Db.tableName "def" { Foo = "three"; Bar = "four" }
-                do! insert Db.tableName "ghi" { Foo = "five"; Bar = "six" }
-
-                let! results = all<SubDocument> Db.tableName
-                let expected = [
-                    { Foo = "one"; Bar = "two" }
-                    { Foo = "three"; Bar = "four" }
-                    { Foo = "five"; Bar = "six" }
-                ]
-                Expect.equal results expected "There should have been 3 documents returned"
-            }
-            testTask "succeeds when there is no data" {
-                use db = Db.buildDatabase ()
-                let! results = all<SubDocument> Db.tableName
-                Expect.equal results [] "There should have been no documents returned"
-            }
-        ]
         testList "insert" [
             testTask "succeeds" {
                 use db = Db.buildDatabase ()
-                let! before = all<SubDocument> Db.tableName
+                let! before = Find.all<SubDocument> Db.tableName
                 Expect.equal before [] "There should be no documents in the table"
 
                 do! insert Db.tableName "turkey" { Foo = "gobble"; Bar = "gobble" }
-                let! after = all<SubDocument> Db.tableName
+                let! after = Find.all<SubDocument> Db.tableName
                 Expect.equal after [ { Foo = "gobble"; Bar = "gobble"} ] "There should have been one document inserted"
             }
             testTask "fails for duplicate key" {
@@ -259,11 +237,11 @@ let integrationTests =
         testList "save" [
             testTask "succeeds when a document is inserted" {
                 use db = Db.buildDatabase ()
-                let! before = all<SubDocument> Db.tableName
+                let! before = Find.all<SubDocument> Db.tableName
                 Expect.equal before [] "There should be no documents in the table"
 
                 do! save Db.tableName "test" { Foo = "a"; Bar = "b" }
-                let! after = all<SubDocument> Db.tableName
+                let! after = Find.all<SubDocument> Db.tableName
                 Expect.equal after [ { Foo = "a"; Bar = "b"} ] "There should have been one document inserted"
             }
             testTask "succeeds when a document is updated" {
@@ -354,6 +332,28 @@ let integrationTests =
             ]
         ]
         testList "Find" [
+            testList "all" [
+                testTask "succeeds when there is data" {
+                    use db = Db.buildDatabase ()
+
+                    do! insert Db.tableName "abc" { Foo = "one"; Bar = "two" }
+                    do! insert Db.tableName "def" { Foo = "three"; Bar = "four" }
+                    do! insert Db.tableName "ghi" { Foo = "five"; Bar = "six" }
+
+                    let! results = Find.all<SubDocument> Db.tableName
+                    let expected = [
+                        { Foo = "one"; Bar = "two" }
+                        { Foo = "three"; Bar = "four" }
+                        { Foo = "five"; Bar = "six" }
+                    ]
+                    Expect.equal results expected "There should have been 3 documents returned"
+                }
+                testTask "succeeds when there is no data" {
+                    use db = Db.buildDatabase ()
+                    let! results = Find.all<SubDocument> Db.tableName
+                    Expect.equal results [] "There should have been no documents returned"
+                }
+            ]
             testList "byId" [
                 testTask "succeeds when a document is found" {
                     use db = Db.buildDatabase ()
@@ -419,7 +419,7 @@ let integrationTests =
                 testTask "succeeds when no document is updated" {
                     use db = Db.buildDatabase ()
 
-                    let! before = all<SubDocument> Db.tableName
+                    let! before = Find.all<SubDocument> Db.tableName
                     Expect.hasCountOf before 0u isTrue "There should have been no documents returned"
                     
                     // This not raising an exception is the test
@@ -440,7 +440,7 @@ let integrationTests =
                 testTask "succeeds when no document is updated" {
                     use db = Db.buildDatabase ()
 
-                    let! before = all<SubDocument> Db.tableName
+                    let! before = Find.all<SubDocument> Db.tableName
                     Expect.hasCountOf before 0u isTrue "There should have been no documents returned"
                     
                     // This not raising an exception is the test
@@ -459,7 +459,7 @@ let integrationTests =
                 testTask "succeeds when no document is updated" {
                     use db = Db.buildDatabase ()
 
-                    let! before = all<SubDocument> Db.tableName
+                    let! before = Find.all<SubDocument> Db.tableName
                     Expect.hasCountOf before 0u isTrue "There should have been no documents returned"
                     
                     // This not raising an exception is the test
@@ -478,7 +478,7 @@ let integrationTests =
                 testTask "succeeds when no document is updated" {
                     use db = Db.buildDatabase ()
 
-                    let! before = all<SubDocument> Db.tableName
+                    let! before = Find.all<SubDocument> Db.tableName
                     Expect.hasCountOf before 0u isTrue "There should have been no documents returned"
                     
                     // This not raising an exception is the test

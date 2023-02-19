@@ -16,12 +16,6 @@ let FromData<'T> (row : RowReader) : 'T =
 /// Versions of queries that accept SqlProps as the last parameter
 module WithProps =
     
-    /// Retrieve all documents in the given table
-    let All<'T> (tableName : string, sqlProps : Sql.SqlProps) : Task<ResizeArray<'T>> = backgroundTask {
-        let! result = FS.WithProps.all tableName sqlProps
-        return ResizeArray result
-    }
-
     /// Insert a new document
     let Insert<'T> (tableName : string, docId : string, document : 'T, sqlProps : Sql.SqlProps) =
         FS.WithProps.insert tableName docId document sqlProps
@@ -63,6 +57,12 @@ module WithProps =
     /// Commands to determine if documents exist
     module Find =
         
+        /// Retrieve all documents in the given table
+        let All<'T> (tableName : string, sqlProps : Sql.SqlProps) : Task<ResizeArray<'T>> = backgroundTask {
+            let! result = FS.WithProps.Find.all tableName sqlProps
+            return ResizeArray result
+        }
+
         /// Retrieve a document by its ID (may return null)
         let ById<'T when 'T : null> (tableName : string, docId : string, sqlProps : Sql.SqlProps)
                 : Task<'T> = backgroundTask {
@@ -119,10 +119,6 @@ module WithProps =
             FS.WithProps.Delete.byJsonPath tableName jsonPath sqlProps
 
 
-/// Retrieve all documents in the given table
-let All<'T> (tableName : string) =
-    WithProps.All<'T> (tableName, FS.fromDataSource ())
-
 /// Insert a new document
 let Insert<'T> (tableName : string, docId : string, document : 'T) =
     WithProps.Insert (tableName, docId, document, FS.fromDataSource ())
@@ -167,6 +163,10 @@ module Exists =
 /// Queries to retrieve documents
 module Find =
     
+    /// Retrieve all documents in the given table
+    let All<'T> (tableName : string) =
+        WithProps.Find.All<'T> (tableName, FS.fromDataSource ())
+
     /// Retrieve a document by its ID
     let ById<'T when 'T : null> (tableName : string, docId : string) =
         WithProps.Find.ById<'T> (tableName, docId, FS.fromDataSource ())

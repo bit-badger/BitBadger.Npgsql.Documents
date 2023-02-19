@@ -225,12 +225,6 @@ let private executeNonQuery query docId (document : 'T) sqlProps =
 /// Versions of queries that accept SqlProps as the last parameter
 module WithProps =
     
-    /// Retrieve all documents in the given table
-    let all<'T> tableName sqlProps : Task<'T list> =
-        sqlProps
-        |> Sql.query (Query.selectFromTable tableName)
-        |> Sql.executeAsync fromData<'T>
-
     /// Insert a new document
     let insert<'T> tableName docId (document : 'T) sqlProps =
         executeNonQuery (Query.insert tableName) docId document sqlProps
@@ -292,6 +286,12 @@ module WithProps =
     [<RequireQualifiedAccess>]
     module Find =
         
+        /// Retrieve all documents in the given table
+        let all<'T> tableName sqlProps : Task<'T list> =
+            sqlProps
+            |> Sql.query (Query.selectFromTable tableName)
+            |> Sql.executeAsync fromData<'T>
+
         /// Retrieve a document by its ID
         let byId<'T> tableName docId sqlProps : Task<'T option> = backgroundTask {
             let! results =
@@ -369,10 +369,6 @@ module WithProps =
             |> ignoreTask
 
 
-/// Retrieve all documents in the given table
-let all<'T> tableName =
-    WithProps.all<'T> tableName (fromDataSource ())
-
 /// Insert a new document
 let insert<'T> tableName docId (document : 'T) =
     WithProps.insert tableName docId document (fromDataSource ())
@@ -420,6 +416,10 @@ module Exists =
 [<RequireQualifiedAccess>]
 module Find =
     
+    /// Retrieve all documents in the given table
+    let all<'T> tableName =
+        WithProps.Find.all<'T> tableName (fromDataSource ())
+
     /// Retrieve a document by its ID
     let byId<'T> tableName docId =
         WithProps.Find.byId<'T> tableName docId (fromDataSource ())
