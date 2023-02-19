@@ -21,8 +21,8 @@ module Configuration =
         o.Converters.Add (JsonFSharpConverter ())
         o
     
-    /// The serializer to use for document manipulation
-    let mutable internal serializer =
+    /// The default JSON serializer
+    let internal defaultSerializer =
         { new IDocumentSerializer with
             member _.Serialize<'T> (it : 'T) : string =
                 JsonSerializer.Serialize (it, jsonDefaultOpts)
@@ -30,10 +30,17 @@ module Configuration =
                 JsonSerializer.Deserialize<'T> (it, jsonDefaultOpts)
         }
     
+    /// The serializer to use for document manipulation
+    let mutable private serializerValue = defaultSerializer
+    
     /// Register a serializer to use for translating documents to domain types
     let useSerializer ser =
-        serializer <- ser
+        serializerValue <- ser
 
+    /// Retrieve the currently configured serializer
+    let serializer () =
+        serializerValue
+    
     /// The data source to use for query execution
     let mutable private dataSourceValue : Npgsql.NpgsqlDataSource option = None
 
@@ -42,13 +49,14 @@ module Configuration =
         if Option.isSome dataSourceValue then dataSourceValue.Value.Dispose ()
         dataSourceValue <- Some source
     
-    let internal dataSource () =
+    /// Retrieve the currently configured data source
+    let dataSource () =
         match dataSourceValue with
         | Some source -> source
         | None -> invalidOp "Please provide a data source before attempting data access"
 
 
-/// Shorthand to retrieve the data source
+/// Shorthand to retrieve the data source as SqlProps
 let internal fromDataSource () =
     Configuration.dataSource () |> Sql.fromDataSource
 
@@ -111,7 +119,7 @@ module Query =
     
     /// Create a JSONB document parameter
     let jsonbDocParam (it : obj) =
-        Sql.jsonb (Configuration.serializer.Serialize it)
+        Sql.jsonb (Configuration.serializer().Serialize it)
 
     /// Create ID and data parameters for a query
     let docParameters<'T> docId (doc : 'T) =
@@ -207,7 +215,7 @@ module Query =
 
 /// Create a domain item from a document, specifying the field in which the document is found
 let fromDocument<'T> field (row : RowReader) : 'T =
-    Configuration.serializer.Deserialize<'T> (row.string field)
+    Configuration.serializer().Deserialize<'T> (row.string field)
     
 /// Create a domain item from a document
 let fromData<'T> row : 'T =

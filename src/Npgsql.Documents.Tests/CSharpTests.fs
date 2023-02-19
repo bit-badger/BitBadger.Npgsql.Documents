@@ -3,6 +3,7 @@ module CSharpTests
 open Expecto
 open Npgsql.Documents
 open Npgsql.FSharp
+open ThrowawayDb.Postgres
 
 [<AllowNullLiteral>]
 type SubDocument () =
@@ -164,16 +165,58 @@ open Document
 
 let integrationTests =
     let documents = [
-        JsonDocument(Id = "one", Value = "FIRST!", NumValue = 0)
-        JsonDocument(Id = "two", Value = "again", NumValue = 10, Sub = Some (SubDocument (Foo = "green", Bar = "blue")))
-        JsonDocument(Id = "three", Value = "", NumValue = 4)
-        JsonDocument(Id = "four", Value = "purple", NumValue = 17, Sub = Some (SubDocument (Foo = "green", Bar = "red")))
-        JsonDocument(Id = "five", Value = "purple", NumValue = 18)
+        JsonDocument (Id = "one", Value = "FIRST!", NumValue = 0)
+        JsonDocument (Id = "two", Value = "again", NumValue = 10,
+                      Sub = Some (SubDocument (Foo = "green", Bar = "blue")))
+        JsonDocument (Id = "three", Value = "", NumValue = 4)
+        JsonDocument (Id = "four", Value = "purple", NumValue = 17,
+                      Sub = Some (SubDocument (Foo = "green", Bar = "red")))
+        JsonDocument (Id = "five", Value = "purple", NumValue = 18)
     ]
     let loadDocs () = backgroundTask {
         for doc in documents do do! Insert (Db.tableName, doc.Id, doc)
     }
     testList "Integration" [
+        testList "Configuration" [
+            test "UseDataSource disposes existing source" {
+                use db1 = ThrowawayDatabase.Create Db.connStr
+                let source = Db.mkDataSource db1.ConnectionString
+                Configuration.UseDataSource source
+
+                use db2 = ThrowawayDatabase.Create Db.connStr
+                Configuration.UseDataSource (Db.mkDataSource db2.ConnectionString)
+                Expect.throws (fun () -> source.OpenConnection () |> ignore) "Data source should have been disposed"
+            }
+            test "DataSource returns configured data source" {
+                use db = ThrowawayDatabase.Create Db.connStr
+                let source = Db.mkDataSource db.ConnectionString
+                Configuration.UseDataSource source
+
+                Expect.isTrue (obj.ReferenceEquals (source, Configuration.DataSource ()))
+                    "Data source should have been the same"
+            }
+            test "UseSerializer succeeds" {
+                try
+                    Configuration.UseSerializer
+                        { new IDocumentSerializer with
+                            member _.Serialize<'T> (it : 'T) : string = """{"Overridden":true}"""
+                            member _.Deserialize<'T> (it : string) : 'T = Unchecked.defaultof<'T>
+                        }
+                    
+                    let serialized = Configuration.Serializer().Serialize (SubDocument(Foo = "howdy", Bar = "bye"))
+                    Expect.equal serialized """{"Overridden":true}""" "Specified serializer was not used"
+                    
+                    let deserialized = Configuration.Serializer().Deserialize<obj> """{"Something":"here"}"""
+                    Expect.isNull deserialized "Specified serializer should have returned null"
+                finally
+                    Configuration.UseSerializer Documents.Configuration.defaultSerializer
+            }
+            test "serializer returns configured serializer" {
+                Expect.isTrue
+                    (obj.ReferenceEquals (Documents.Configuration.defaultSerializer, Configuration.Serializer ()))
+                    "Serializer should have been the same"
+            }
+        ]
         testList "Definition" [
             testTask "EnsureTable succeeds" {
                 use db = Db.buildDatabase ()
