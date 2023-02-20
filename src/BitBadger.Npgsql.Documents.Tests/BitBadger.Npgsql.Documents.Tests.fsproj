@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Db.fs" />
+    <Compile Include="FSharpTests.fs" />
+    <Compile Include="CSharpTests.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BitBadger.Npgsql.FSharp.Documents\BitBadger.Npgsql.FSharp.Documents.fsproj" />
+    <ProjectReference Include="..\BitBadger.Npgsql.Documents\BitBadger.Npgsql.Documents.fsproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Expecto" Version="9.0.4" />
+    <PackageReference Include="ThrowawayDb.Postgres" Version="1.4.0" />
+  </ItemGroup>
+
+</Project>

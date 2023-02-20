@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Lightweight functions to use PostgreSQL as a document store (best for C#)</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Configuration.fs" />
+    <Compile Include="DocumentIndex.fs" />
+    <Compile Include="Definition.fs" />
+    <Compile Include="Query.fs" />
+    <Compile Include="Document.fs" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="..\icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BitBadger.Npgsql.FSharp.Documents\BitBadger.Npgsql.FSharp.Documents.fsproj" />
+  </ItemGroup>
+
+</Project>
