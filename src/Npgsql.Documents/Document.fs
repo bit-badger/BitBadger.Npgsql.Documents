@@ -141,11 +141,9 @@ module WithProps =
         let Single<'T when 'T : null> (query : string, parameters : IEnumerable<Tuple<string, SqlValue>>,
                                        deserFunc : Func<RowReader, 'T>, sqlProps : Sql.SqlProps)
                 : Task<'T> = backgroundTask {
-            let! results =
-                Sql.query query sqlProps
-                |> Sql.parameters (List.ofSeq parameters)
-                |> Sql.executeAsync (fun row -> deserFunc.Invoke row)
-            return match List.tryHead results with Some it -> it | None -> null
+            let! result =
+                FS.WithProps.Custom.single query (List.ofSeq parameters) (fun row -> deserFunc.Invoke row) sqlProps
+            return Option.toObj result
         }
 
         /// Execute a query that returns a list of results
@@ -153,21 +151,13 @@ module WithProps =
                       deserFunc : Func<RowReader, 'T>, sqlProps : Sql.SqlProps)
                 : Task<ResizeArray<'T>> = backgroundTask {
             let! results =
-                Sql.query query sqlProps
-                |> Sql.parameters (List.ofSeq parameters)
-                |> Sql.executeAsync (fun row -> deserFunc.Invoke row)
+                FS.WithProps.Custom.list query (List.ofSeq parameters) (fun row -> deserFunc.Invoke row) sqlProps
             return ResizeArray results
         }
 
         /// Execute a query that returns no results
-        let NonQuery (query : string, parameters : IEnumerable<Tuple<string, SqlValue>>,
-                      sqlProps : Sql.SqlProps) = backgroundTask {
-            let! _ =
-                Sql.query query sqlProps
-                |> Sql.parameters (FSharp.Collections.List.ofSeq parameters)
-                |> Sql.executeNonQueryAsync
-            ()
-        }
+        let NonQuery (query : string, parameters : IEnumerable<Tuple<string, SqlValue>>, sqlProps : Sql.SqlProps) =
+            FS.WithProps.Custom.nonQuery query parameters sqlProps
 
 
 /// Insert a new document

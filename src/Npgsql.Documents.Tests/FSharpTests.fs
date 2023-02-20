@@ -641,6 +641,68 @@ let integrationTests =
                 }
             ]
         ]
+        testList "Custom" [
+            testList "single" [
+                testTask "succeeds when a row is found" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    let! doc =
+                        Custom.single $"SELECT data FROM {Db.tableName} WHERE id = @id" [ "@id", Sql.string "one"]
+                                      fromData<JsonDocument>
+                    Expect.isSome doc "There should have been a document returned"
+                    Expect.equal doc.Value.Id "one" "The incorrect document was returned"
+                }
+                testTask "succeeds when a row is not found" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    let! doc =
+                        Custom.single $"SELECT data FROM {Db.tableName} WHERE id = @id" [ "@id", Sql.string "eighty" ]
+                                      fromData<JsonDocument>
+                    Expect.isNone doc "There should not have been a document returned"
+                }
+            ]
+            testList "list" [
+                testTask "succeeds when data is found" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    let! docs = Custom.list (Query.selectFromTable Db.tableName) [] fromData<JsonDocument>
+                    Expect.hasCountOf docs 5u isTrue "There should have been 5 documents returned"
+                }
+                testTask "succeeds when data is not found" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    let! docs =
+                        Custom.list $"SELECT data FROM {Db.tableName} WHERE data @? @path::jsonpath"
+                                    [ "@path", Sql.string "$.NumValue ? (@ > 100)" ] fromData<JsonDocument>
+                    Expect.isEmpty docs "There should have been no documents returned"
+                }
+            ]
+            testList "nonQuery" [
+                testTask "succeeds when operating on data" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    do! Custom.nonQuery $"DELETE FROM {Db.tableName}" []
+
+                    let! remaining = Count.all Db.tableName
+                    Expect.equal remaining 0 "There should be no documents remaining in the table"
+                }
+                testTask "succeeds when no data matches where clause" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    do! Custom.nonQuery $"DELETE FROM {Db.tableName} WHERE data @? @path::jsonpath"
+                                        [ "@path", Sql.string "$.NumValue ? (@ > 100)" ]
+
+                    let! remaining = Count.all Db.tableName
+                    Expect.equal remaining 5 "There should be 5 documents remaining in the table"
+                }
+            ]
+        ]
     ]
     |> testSequenced
 

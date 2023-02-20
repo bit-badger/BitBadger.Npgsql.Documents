@@ -387,6 +387,32 @@ module WithProps =
             |> Sql.parameters [ "@path", Sql.string path ]
             |> Sql.executeNonQueryAsync
             |> ignoreTask
+    
+    /// Commands to execute custom SQL queries
+    [<RequireQualifiedAccess>]
+    module Custom =
+
+        /// Execute a query that returns one or no results
+        let single<'T> query parameters (deserFunc : RowReader -> 'T) sqlProps = backgroundTask {
+            let! results =
+                Sql.query query sqlProps
+                |> Sql.parameters parameters
+                |> Sql.executeAsync deserFunc
+            return List.tryHead results
+        }
+
+        /// Execute a query that returns a list of results
+        let list<'T> query parameters (deserFunc : RowReader -> 'T) sqlProps =
+            Sql.query query sqlProps
+            |> Sql.parameters parameters
+            |> Sql.executeAsync deserFunc
+
+        /// Execute a query that returns no results
+        let nonQuery query parameters sqlProps =
+            Sql.query query sqlProps
+            |> Sql.parameters (FSharp.Collections.List.ofSeq parameters)
+            |> Sql.executeNonQueryAsync
+            |> ignoreTask
 
 
 /// Insert a new document
@@ -500,3 +526,20 @@ module Delete =
     /// Delete documents by matching a JSON Path match query (@?)
     let byJsonPath tableName path =
         WithProps.Delete.byJsonPath tableName path (fromDataSource ())
+
+    
+/// Commands to execute custom SQL queries
+[<RequireQualifiedAccess>]
+module Custom =
+
+    /// Execute a query that returns one or no results
+    let single<'T> query parameters (deserFunc : RowReader ->  'T) =
+        WithProps.Custom.single query parameters deserFunc (fromDataSource ())
+
+    /// Execute a query that returns a list of results
+    let list<'T> query parameters (deserFunc : RowReader -> 'T) =
+        WithProps.Custom.list query parameters deserFunc (fromDataSource ())
+
+    /// Execute a query that returns no results
+    let nonQuery query parameters =
+        WithProps.Custom.nonQuery query parameters (fromDataSource ())
