@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Lightweight functions to use PostgreSQL as a document store (best for C#)</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Configuration.fs" />
+    <Compile Include="DocumentIndex.fs" />
+    <Compile Include="Definition.fs" />
+    <Compile Include="Query.fs" />
+    <Compile Include="Document.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Npgsql.FSharp.Documents\Npgsql.FSharp.Documents.fsproj" />
+  </ItemGroup>
+
+</Project>
