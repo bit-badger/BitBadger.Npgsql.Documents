@@ -18,10 +18,10 @@
 
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-      <_Parameter1>Npgsql.Documents</_Parameter1>
+      <_Parameter1>BitBadger.Npgsql.Documents</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-      <_Parameter1>Npgsql.Documents.Tests</_Parameter1>
+      <_Parameter1>BitBadger.Npgsql.Documents.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
 

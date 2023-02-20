@@ -1,10 +1,10 @@
 module FSharpTests
 
 open System
+open BitBadger.Npgsql.Documents
+open BitBadger.Npgsql.FSharp.Documents
 open Expecto
-open Npgsql.Documents
 open Npgsql.FSharp
-open Npgsql.FSharp.Documents
 open ThrowawayDb.Postgres
 
 type SubDocument =

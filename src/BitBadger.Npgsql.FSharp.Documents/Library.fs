@@ -1,4 +1,4 @@
-﻿module Npgsql.FSharp.Documents
+﻿module BitBadger.Npgsql.FSharp.Documents
 
 /// The type of index to generate for the document
 type DocumentIndex =
@@ -13,7 +13,7 @@ module Configuration =
 
     open System.Text.Json
     open System.Text.Json.Serialization
-    open Npgsql.Documents
+    open BitBadger.Npgsql.Documents
 
     /// The default JSON serializer options to use with the stock serializer
     let private jsonDefaultOpts =
@@ -55,6 +55,8 @@ module Configuration =
         | Some source -> source
         | None -> invalidOp "Please provide a data source before attempting data access"
 
+
+open Npgsql.FSharp
 
 /// Shorthand to retrieve the data source as SqlProps
 let internal fromDataSource () =

@@ -1,8 +1,8 @@
 /// Configuration options for the document store
-module Npgsql.Documents.Configuration
+module BitBadger.Npgsql.Documents.Configuration
 
 open Npgsql
-open Npgsql.FSharp.Documents
+open BitBadger.Npgsql.FSharp.Documents
 
 /// Specify the serializer to use for document serialization/deserialization
 let UseSerializer (ser : IDocumentSerializer) =

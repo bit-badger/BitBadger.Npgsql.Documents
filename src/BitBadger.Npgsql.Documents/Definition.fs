@@ -1,9 +1,9 @@
-module Npgsql.Documents.Definition
+module BitBadger.Npgsql.Documents.Definition
 
 open Npgsql.FSharp
 
 /// Alias for F# document module
-module FS = Documents
+module FS = BitBadger.Npgsql.FSharp.Documents
 
 /// Convert the C# index type representation to the F# one
 let private convertIndexType idxType =

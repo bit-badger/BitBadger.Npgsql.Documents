@@ -1,4 +1,4 @@
-namespace Npgsql.Documents
+namespace BitBadger.Npgsql.Documents
 
 /// The type of index to generate for the document
 type DocumentIndex =

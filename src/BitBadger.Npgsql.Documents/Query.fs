@@ -1,8 +1,8 @@
 /// Query construction functions
-module Npgsql.Documents.Query
+module BitBadger.Npgsql.Documents.Query
 
 /// Alias for F# document module
-module FS = Npgsql.FSharp.Documents
+module FS = BitBadger.Npgsql.FSharp.Documents
 
 /// Create a SELECT clause to retrieve the document data from the given table
 let SelectFromTable (tableName : string) =

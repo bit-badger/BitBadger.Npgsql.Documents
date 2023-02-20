@@ -1,9 +1,9 @@
-﻿module Npgsql.Documents.Document
+﻿module BitBadger.Npgsql.Documents.Document
 
 open System.Threading.Tasks
 open Npgsql.FSharp
 
-module FS = Documents
+module FS = BitBadger.Npgsql.FSharp.Documents
 
 /// Create a domain item from a document, specifying the field in which the document is found
 let FromDocument<'T> (field : string, row : RowReader) : 'T =

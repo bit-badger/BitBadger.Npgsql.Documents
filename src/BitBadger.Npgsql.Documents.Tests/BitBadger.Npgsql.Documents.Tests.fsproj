@@ -12,8 +12,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Npgsql.FSharp.Documents\Npgsql.FSharp.Documents.fsproj" />
-    <ProjectReference Include="..\Npgsql.Documents\Npgsql.Documents.fsproj" />
+    <ProjectReference Include="..\BitBadger.Npgsql.FSharp.Documents\BitBadger.Npgsql.FSharp.Documents.fsproj" />
+    <ProjectReference Include="..\BitBadger.Npgsql.Documents\BitBadger.Npgsql.Documents.fsproj" />
   </ItemGroup>
 
   <ItemGroup>

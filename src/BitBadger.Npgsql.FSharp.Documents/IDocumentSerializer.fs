@@ -1,4 +1,4 @@
-namespace Npgsql.Documents
+namespace BitBadger.Npgsql.Documents
 
 /// The required document serialization implementation
 type IDocumentSerializer =

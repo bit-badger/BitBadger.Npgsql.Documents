@@ -1,8 +1,8 @@
 module CSharpTests
 
 open System
+open BitBadger.Npgsql.Documents
 open Expecto
-open Npgsql.Documents
 open Npgsql.FSharp
 open ThrowawayDb.Postgres
 
@@ -164,6 +164,8 @@ let isTrue<'T> (_ : 'T) = true
 
 open Document
 
+module FS = BitBadger.Npgsql.FSharp.Documents
+
 let integrationTests =
     let documents = [
         JsonDocument (Id = "one", Value = "FIRST!", NumValue = 0)
@@ -210,11 +212,11 @@ let integrationTests =
                     let deserialized = Configuration.Serializer().Deserialize<obj> """{"Something":"here"}"""
                     Expect.isNull deserialized "Specified serializer should have returned null"
                 finally
-                    Configuration.UseSerializer Documents.Configuration.defaultSerializer
+                    Configuration.UseSerializer FS.Configuration.defaultSerializer
             }
             test "serializer returns configured serializer" {
                 Expect.isTrue
-                    (obj.ReferenceEquals (Documents.Configuration.defaultSerializer, Configuration.Serializer ()))
+                    (obj.ReferenceEquals (FS.Configuration.defaultSerializer, Configuration.Serializer ()))
                     "Serializer should have been the same"
             }
         ]

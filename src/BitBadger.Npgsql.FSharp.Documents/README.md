@@ -1,4 +1,4 @@
-This package provides a set of functions that provide a document database interface to a data store backed by PostgreSQL. This library is targeted toward C# usage; for F#, see `Npgsql.FSharp.Documents`.
+This package provides a set of functions that provide a document database interface to a data store backed by PostgreSQL. This library is targeted toward F# usage; for C#, see `BitBadger.Npgsql.Documents`.
 
 _NOTE: This is beta software; reviewing the source and its comments is the best way to learn what it does._
 
@@ -14,47 +14,47 @@ _NOTE: This is beta software; reviewing the source and its comments is the best 
 
 The main step is to set the data source with which the library will create connections. Construct an `NpgsqlDataSource` instance, and provide it to the library:
 
-```csharp
-using Npgsql.Documents
+```fsharp
+open BitBadger.Npgsql.FSharp.Documents
 
 // ...
-var dataSource = // ....
+let dataSource = // ....
 
-Configuration.UseDataSource(dataSource);
+Configuration.useDataSource dataSource
 // ...
 ```
 
-By default, the library uses a System.Text.Json-based serializer configured to use the FSharp.SystemTextJson converter (which will have no noticeable effect for C# uses). To provide a different serializer (different options, more converters, etc.), construct it to implement `IDocumentSerializer` and provide it via `Configuration.UseSerializer`.
+By default, the library uses a System.Text.Json-based serializer configured to use the FSharp.SystemTextJson converter. To provide a different serializer (different options, more converters, etc.), construct it to implement `IDocumentSerializer` and provide it via `Configuration.useSerializer`.
 
 ## Using
 
 Retrieve all customers:
 
-```csharp
+```fsharp
 // parameter is table name
 // returns Task<Customer list>
-var customers = await Document.All<Customer>("customer");
+let! customers = all<Customer> "customer"
 ```
 
 Select a customer by ID:
 
-```csharp
+```fsharp
 // parameters are table name and ID
 // returns Task<Customer option>
-var customer = await Document.Find.ById<Customer>("customer", "123")
+let! customer = Find.byId<Customer> "customer" "123"
 ```
 
 Count customers in Atlanta:
 
-```csharp
+```fsharp
 // parameters are table name and object used for JSON containment query
 // return Task<int>
-var customerCount = await Document.Count.ByContains("customer", new { City = "Atlanta" });
+let! customerCount = Count.byContains "customer" {| City = "Atlanta" |}
 ```
 
 Delete customers in Chicago: _(no offense, Second City; just an example...)_
 
-```csharp
+```fsharp
 // parameters are table name and JSON Path expression
-await Document.Delete.ByJsonPath("customer", "$.City ? (@ == \"Chicago\")");
+do! Delete.byJsonPath "customer" """$.City ? (@ == "Chicago")"""
 ```
