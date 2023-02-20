@@ -1,7 +1,5 @@
 This package provides a set of functions that provide a document database interface to a data store backed by PostgreSQL. This library is targeted toward C# usage; for F#, see `BitBadger.Npgsql.FSharp.Documents`.
 
-_NOTE: This is beta software; reviewing the source and its comments is the best way to learn what it does._
-
 ## Features
 
 - Select, insert, update, save (upsert), delete, count, and check existence of documents, and create tables and indexes for these documents
@@ -41,7 +39,7 @@ Select a customer by ID:
 ```csharp
 // parameters are table name and ID
 // returns Task<Customer option>
-var customer = await Document.Find.ById<Customer>("customer", "123")
+var customer = await Document.Find.ById<Customer>("customer", "123");
 ```
 
 Count customers in Atlanta:
@@ -58,3 +56,7 @@ Delete customers in Chicago: _(no offense, Second City; just an example...)_
 // parameters are table name and JSON Path expression
 await Document.Delete.ByJsonPath("customer", "$.City ? (@ == \"Chicago\")");
 ```
+
+## More Information
+
+The [project site](https://bitbadger.solutions/open-source/postgres-documents/) has full details on how to use this library.

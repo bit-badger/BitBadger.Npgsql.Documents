@@ -2,7 +2,6 @@
 
   <PropertyGroup>
     <Description>Lightweight functions to use PostgreSQL as a document store (best for C#)</Description>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -11,6 +10,8 @@
     <Compile Include="Definition.fs" />
     <Compile Include="Query.fs" />
     <Compile Include="Document.fs" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="..\icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup>
