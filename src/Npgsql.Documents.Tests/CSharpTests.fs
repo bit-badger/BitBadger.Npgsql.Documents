@@ -1,5 +1,6 @@
 module CSharpTests
 
+open System
 open Expecto
 open Npgsql.Documents
 open Npgsql.FSharp
@@ -651,6 +652,70 @@ let integrationTests =
                     do! Delete.ByJsonPath (Db.tableName, "$.NumValue ? (@ > 100)")
                     let! remaining = Count.All Db.tableName
                     Expect.equal remaining 5 "There should have been 5 documents remaining"
+                }
+            ]
+        ]
+        testList "Document.Custom" [
+            testList "Single" [
+                testTask "succeeds when a row is found" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    let! doc =
+                        Custom.Single ($"SELECT data FROM {Db.tableName} WHERE id = @id",
+                                       Seq.singleton (Tuple.Create ("@id", Sql.string "one")), FromData<JsonDocument>)
+                    Expect.isNotNull doc "There should have been a document returned"
+                    Expect.equal (doc :> JsonDocument).Id "one" "The incorrect document was returned"
+                }
+                testTask "succeeds when a row is not found" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    let! doc =
+                        Custom.Single ($"SELECT data FROM {Db.tableName} WHERE id = @id",
+                                       Seq.singleton (Tuple.Create ("@id", Sql.string "eighty")),
+                                       FromData<JsonDocument>)
+                    Expect.isNull doc "There should not have been a document returned"
+                }
+            ]
+            testList "List" [
+                testTask "succeeds when data is found" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    let! docs = Custom.List (Query.SelectFromTable(Db.tableName), Seq.empty, FromData<JsonDocument>)
+                    Expect.hasCountOf docs 5u isTrue "There should have been 5 documents returned"
+                }
+                testTask "succeeds when data is not found" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    let! docs =
+                        Custom.List ($"SELECT data FROM {Db.tableName} WHERE data @? @path::jsonpath",
+                                     Seq.singleton (Tuple.Create ("@path", Sql.string "$.NumValue ? (@ > 100)")),
+                                     FromData<JsonDocument>)
+                    Expect.isEmpty docs "There should have been no documents returned"
+                }
+            ]
+            testList "NonQuery" [
+                testTask "succeeds when operating on data" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    do! Custom.NonQuery ($"DELETE FROM {Db.tableName}", Seq.empty)
+
+                    let! remaining = Count.All(Db.tableName)
+                    Expect.equal remaining 0 "There should be no documents remaining in the table"
+                }
+                testTask "succeeds when no data matches where clause" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    do! Custom.NonQuery ($"DELETE FROM {Db.tableName} WHERE data @? @path::jsonpath",
+                                         Seq.singleton (Tuple.Create ("@path", Sql.string "$.NumValue ? (@ > 100)")))
+
+                    let! remaining = Count.All(Db.tableName)
+                    Expect.equal remaining 5 "There should be 5 documents remaining in the table"
                 }
             ]
         ]

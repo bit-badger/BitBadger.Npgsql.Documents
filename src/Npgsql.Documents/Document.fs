@@ -116,7 +116,7 @@ module WithProps =
         let PartialByJsonPath (tableName : string, jsonPath : string, partial : obj, sqlProps : Sql.SqlProps) =
             FS.WithProps.Update.partialByJsonPath tableName jsonPath partial sqlProps
 
-    /// Queries to delete documents
+    /// Commands to delete documents
     module Delete =
         
         /// Delete a document by its ID
@@ -130,6 +130,44 @@ module WithProps =
         /// Delete documents by matching a JSON Path match query (@?)
         let ByJsonPath (tableName : string, jsonPath : string, sqlProps : Sql.SqlProps) =
             FS.WithProps.Delete.byJsonPath tableName jsonPath sqlProps
+    
+    /// Commands to execute custom SQL queries
+    module Custom =
+
+        open System
+        open System.Collections.Generic
+
+        /// Execute a query that returns one or no results
+        let Single<'T when 'T : null> (query : string, parameters : IEnumerable<Tuple<string, SqlValue>>,
+                                       deserFunc : Func<RowReader, 'T>, sqlProps : Sql.SqlProps)
+                : Task<'T> = backgroundTask {
+            let! results =
+                Sql.query query sqlProps
+                |> Sql.parameters (List.ofSeq parameters)
+                |> Sql.executeAsync (fun row -> deserFunc.Invoke row)
+            return match List.tryHead results with Some it -> it | None -> null
+        }
+
+        /// Execute a query that returns a list of results
+        let List<'T> (query : string, parameters : IEnumerable<Tuple<string, SqlValue>>,
+                      deserFunc : Func<RowReader, 'T>, sqlProps : Sql.SqlProps)
+                : Task<ResizeArray<'T>> = backgroundTask {
+            let! results =
+                Sql.query query sqlProps
+                |> Sql.parameters (List.ofSeq parameters)
+                |> Sql.executeAsync (fun row -> deserFunc.Invoke row)
+            return ResizeArray results
+        }
+
+        /// Execute a query that returns no results
+        let NonQuery (query : string, parameters : IEnumerable<Tuple<string, SqlValue>>,
+                      sqlProps : Sql.SqlProps) = backgroundTask {
+            let! _ =
+                Sql.query query sqlProps
+                |> Sql.parameters (FSharp.Collections.List.ofSeq parameters)
+                |> Sql.executeNonQueryAsync
+            ()
+        }
 
 
 /// Insert a new document
@@ -149,7 +187,7 @@ let SaveFunc<'T> (tableName : string, idFunc : System.Func<'T, string>, document
     WithProps.SaveFunc<'T> (tableName, idFunc, document, FS.fromDataSource ())
 
 
-/// Queries to count documents
+/// Commands to count documents
 module Count =
     
     /// Count all documents in a table
@@ -165,7 +203,7 @@ module Count =
         WithProps.Count.ByJsonPath (tableName, jsonPath, FS.fromDataSource ())
 
 
-/// Queries to determine if documents exist
+/// Commands to determine if documents exist
 module Exists =
 
     /// Determine if a document exists for the given ID
@@ -181,7 +219,7 @@ module Exists =
         WithProps.Exists.ByJsonPath (tableName, jsonPath, FS.fromDataSource ())
 
 
-/// Queries to retrieve documents
+/// Commands to retrieve documents
 module Find =
     
     /// Retrieve all documents in the given table
@@ -224,7 +262,7 @@ module Update =
         WithProps.Update.PartialByJsonPath (tableName, jsonPath, partial, FS.fromDataSource ())
 
 
-/// Queries to delete documents
+/// Commands to delete documents
 module Delete =
     
     /// Delete a document by its ID
@@ -238,3 +276,23 @@ module Delete =
     /// Delete documents by matching a JSON Path match query (@?)
     let ByJsonPath (tableName : string, jsonPath : string) =
         WithProps.Delete.ByJsonPath (tableName, jsonPath, FS.fromDataSource ())
+
+
+/// Commands to execute custom SQL queries
+module Custom =
+
+    open System
+    open System.Collections.Generic
+
+    /// Execute a query that returns one or no results
+    let Single<'T when 'T : null> (query : string, parameters : IEnumerable<Tuple<string, SqlValue>>,
+                                   deserFunc : Func<RowReader, 'T>) =
+        WithProps.Custom.Single (query, parameters, deserFunc, FS.fromDataSource ())
+
+    /// Execute a query that returns a list of results
+    let List<'T> (query : string, parameters : IEnumerable<Tuple<string, SqlValue>>, deserFunc : Func<RowReader, 'T>) =
+        WithProps.Custom.List (query, parameters, deserFunc, FS.fromDataSource ())
+
+    /// Execute a query that returns no results
+    let NonQuery (query : string, parameters : IEnumerable<Tuple<string, SqlValue>>) =
+        WithProps.Custom.NonQuery (query, parameters, FS.fromDataSource ())
