@@ -412,9 +412,15 @@ module WithProps =
         /// Execute a query that returns no results
         let nonQuery query parameters sqlProps =
             Sql.query query sqlProps
-            |> Sql.parameters (FSharp.Collections.List.ofSeq parameters)
+            |> Sql.parameters (List.ofSeq parameters)
             |> Sql.executeNonQueryAsync
             |> ignoreTask
+        
+        /// Execute a query that returns a scalar value
+        let scalar<'T when 'T : struct> query parameters (mapFunc : RowReader -> 'T) sqlProps =
+            Sql.query query sqlProps
+            |> Sql.parameters parameters
+            |> Sql.executeRowAsync mapFunc
 
 
 /// Insert a new document
@@ -545,3 +551,7 @@ module Custom =
     /// Execute a query that returns no results
     let nonQuery query parameters =
         WithProps.Custom.nonQuery query parameters (fromDataSource ())
+
+    /// Execute a query that returns a scalar value
+    let scalar<'T when 'T : struct> query parameters (mapFunc : RowReader -> 'T) =
+        WithProps.Custom.scalar query parameters mapFunc (fromDataSource ())

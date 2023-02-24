@@ -720,6 +720,14 @@ let integrationTests =
                     Expect.equal remaining 5 "There should be 5 documents remaining in the table"
                 }
             ]
+            testTask "Scalar succeeds" {
+                use db = Db.buildDatabase ()
+
+                let! value =
+                    Custom.Scalar ($"SELECT false AS test_value", Seq.empty,
+                                   Func<RowReader, bool>(fun row -> row.bool "test_value"))
+                Expect.isFalse value "The query should have returned the value false"
+            }
         ]
     ]
     |> testSequenced

@@ -702,6 +702,12 @@ let integrationTests =
                     Expect.equal remaining 5 "There should be 5 documents remaining in the table"
                 }
             ]
+            testTask "scalar succeeds" {
+                use db = Db.buildDatabase ()
+
+                let! nbr = Custom.scalar $"SELECT 5 AS test_value" [] (fun row -> row.int "test_value")
+                Expect.equal nbr 5 "The query should have returned the number 5"
+            }
         ]
     ]
     |> testSequenced

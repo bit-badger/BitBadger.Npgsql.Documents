@@ -141,8 +141,7 @@ module WithProps =
         let Single<'T when 'T : null> (query : string, parameters : IEnumerable<Tuple<string, SqlValue>>,
                                        deserFunc : Func<RowReader, 'T>, sqlProps : Sql.SqlProps)
                 : Task<'T> = backgroundTask {
-            let! result =
-                FS.WithProps.Custom.single query (List.ofSeq parameters) (fun row -> deserFunc.Invoke row) sqlProps
+            let! result = FS.WithProps.Custom.single query (List.ofSeq parameters) deserFunc.Invoke sqlProps
             return Option.toObj result
         }
 
@@ -150,14 +149,19 @@ module WithProps =
         let List<'T> (query : string, parameters : IEnumerable<Tuple<string, SqlValue>>,
                       deserFunc : Func<RowReader, 'T>, sqlProps : Sql.SqlProps)
                 : Task<ResizeArray<'T>> = backgroundTask {
-            let! results =
-                FS.WithProps.Custom.list query (List.ofSeq parameters) (fun row -> deserFunc.Invoke row) sqlProps
+            let! results = FS.WithProps.Custom.list query (List.ofSeq parameters) deserFunc.Invoke sqlProps
             return ResizeArray results
         }
 
         /// Execute a query that returns no results
         let NonQuery (query : string, parameters : IEnumerable<Tuple<string, SqlValue>>, sqlProps : Sql.SqlProps) =
             FS.WithProps.Custom.nonQuery query parameters sqlProps
+
+        /// Execute a query that returns a scalar value
+        let Scalar<'T when 'T : struct> (query : string, parameters : IEnumerable<Tuple<string, SqlValue>>,
+                                         mapFunc : Func<RowReader, 'T>, sqlProps : Sql.SqlProps)
+                : Task<'T> =
+            FS.WithProps.Custom.scalar query (FSharp.Collections.List.ofSeq parameters) mapFunc.Invoke sqlProps
 
 
 /// Insert a new document
@@ -286,3 +290,8 @@ module Custom =
     /// Execute a query that returns no results
     let NonQuery (query : string, parameters : IEnumerable<Tuple<string, SqlValue>>) =
         WithProps.Custom.NonQuery (query, parameters, FS.fromDataSource ())
+
+    /// Execute a query that returns a scalar value
+    let Scalar<'T when 'T : struct> (query : string, parameters : IEnumerable<Tuple<string, SqlValue>>,
+                                     mapFunc : Func<RowReader, 'T>) =
+        WithProps.Custom.Scalar (query, parameters, mapFunc, FS.fromDataSource ())
