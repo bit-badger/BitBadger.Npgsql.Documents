@@ -14,10 +14,11 @@ jobs:
     strategy:
       matrix:
         dotnet-version: [ "6.0", "7.0" ]
+        postgres-version: [ "12", "13", "14", "latest" ]
     
     services:
       postgres:
-        image: postgres
+        image: postgres:${{ matrix.postgres-version }}
         env:
           POSTGRES_PASSWORD: postgres
         options: >-
@@ -40,5 +41,33 @@ jobs:
       run: dotnet build src/BitBadger.Npgsql.Documents.sln --no-restore
     - name: Test ${{ matrix.dotnet-version }}
       run: dotnet run --project src/BitBadger.Npgsql.Documents.Tests/BitBadger.Npgsql.Documents.Tests.fsproj -f net${{ matrix.dotnet-version }}
-#    - name: Test
-#      run: dotnet test --no-build --verbosity normal
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    
+    strategy:
+      matrix:
+        dotnet-version: [ "6.0", "7.0" ]
+        postgres-version: [ "12", "13", "14", "latest" ]
+    
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres-version }}
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - name: Test ${{ matrix.dotnet-version }} against PostgreSQL ${{ matrix.postgres-version }}
+      run: dotnet run --project src/BitBadger.Npgsql.Documents.Tests/BitBadger.Npgsql.Documents.Tests.fsproj -f net${{ matrix.dotnet-version }}
+  
+  #publish:
+  #  runs-on: ubuntu-latest
+  #  needs: [ build, test ]
+    
