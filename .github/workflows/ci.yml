@@ -56,15 +56,22 @@ jobs:
         dotnet-version: "7.0"
     - name: Package F# Library
       run: dotnet pack src/$FS_PROJECT/$FS_PROJECT.fsproj -c Release
-    - name: Save F# Package
-      uses: actions/upload-artifact@v3
-      with:
-        name: fsharp-package
-        path: src/$FS_PROJECT/bin/Release/$FS_PROJECT.*.nupkg
+#    - name: Save F# Package
+#      uses: actions/upload-artifact@v3
+#      with:
+#        name: fsharp-package
+#        path: src/$FS_PROJECT/bin/Release/$FS_PROJECT.*.nupkg
     - name: Package C# Library
       run: dotnet pack src/$CS_PROJECT/$CS_PROJECT.fsproj -c Release
-    - name: Save C# Package
+#    - name: Save C# Package
+#      uses: actions/upload-artifact@v3
+#      with:
+#        name: fsharp-package
+#        path: src/$CS_PROJECT/bin/Release/$CS_PROJECT.*.nupkg
+    - name: Save Packages
       uses: actions/upload-artifact@v3
       with:
-        name: fsharp-package
-        path: src/$CS_PROJECT/bin/Release/$CS_PROJECT.*.nupkg
+        name: packages
+        path: |
+          src/$FS_PROJECT/bin/Release/$FS_PROJECT.*.nupkg
+          src/$CS_PROJECT/bin/Release/$CS_PROJECT.*.nupkg
