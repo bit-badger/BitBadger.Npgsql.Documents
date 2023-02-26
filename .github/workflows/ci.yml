@@ -39,6 +39,6 @@ jobs:
     - name: Build
       run: dotnet build src/BitBadger.Npgsql.Documents.sln --no-restore
     - name: Test ${{ matrix.dotnet-version }}
-      run: dotnet run src/BitBadger.Npgsql.Documents.Tests/BitBadger.Npgsql.Documents.Tests.fsproj -f net${{ matrix.dotnet-version }}
+      run: dotnet run --project src/BitBadger.Npgsql.Documents.Tests/BitBadger.Npgsql.Documents.Tests.fsproj -f net${{ matrix.dotnet-version }}
 #    - name: Test
 #      run: dotnet test --no-build --verbosity normal
