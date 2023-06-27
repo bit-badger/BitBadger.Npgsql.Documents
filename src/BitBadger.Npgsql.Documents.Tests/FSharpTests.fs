@@ -478,6 +478,23 @@ let integrationTests =
                     Expect.isTrue (List.isEmpty docs) "There should have been no documents returned"
                 }
             ]
+            testList "firstByContains" [
+                testTask "succeeds when a document is found" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    let! doc = Find.firstByContains<JsonDocument> Db.tableName {| Value = "another" |}
+                    Expect.isTrue (Option.isSome doc) "There should have been a document returned"
+                    Expect.equal doc.Value.Id "two" "The incorrect document was returned"
+                }
+                testTask "succeeds when a document is not found" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    let! doc = Find.byId<JsonDocument> Db.tableName "three hundred eighty-seven"
+                    Expect.isFalse (Option.isSome doc) "There should not have been a document returned"
+                }
+            ]
         ]
         testList "Update" [
             testList "full" [

@@ -333,6 +333,18 @@ module WithProps =
             |> Sql.query (Query.Find.byJsonPath tableName)
             |> Sql.parameters [ "@path", Sql.string jsonPath ]
             |> Sql.executeAsync fromData<'T>
+        
+        /// Execute a JSON containment query (@>), returning only the first result
+        let firstByContains<'T> tableName (criteria : obj) sqlProps : Task<'T option> = backgroundTask {
+            let! results = byContains tableName criteria sqlProps
+            return List.tryHead results
+        }
+
+        /// Execute a JSON Path match query (@?), returning only the first result
+        let firstByJsonPath<'T> tableName jsonPath sqlProps : Task<'T option> = backgroundTask {
+            let! results = byJsonPath tableName jsonPath sqlProps
+            return List.tryHead results
+        }
 
     /// Commands to update documents
     [<RequireQualifiedAccess>]
@@ -490,8 +502,17 @@ module Find =
     let byContains<'T> tableName criteria =
         WithProps.Find.byContains<'T> tableName criteria (fromDataSource ())
 
+    /// Execute a JSON Path match query (@?)
     let byJsonPath<'T> tableName jsonPath =
         WithProps.Find.byJsonPath<'T> tableName jsonPath (fromDataSource ())
+    
+    /// Execute a JSON containment query (@>), returning only the first result
+    let firstByContains<'T> tableName (criteria : obj) =
+        WithProps.Find.firstByContains tableName criteria (fromDataSource ())
+
+    /// Execute a JSON Path match query (@?), returning only the first result
+    let firstByJsonPath<'T> tableName jsonPath =
+        WithProps.Find.firstByJsonPath tableName jsonPath (fromDataSource ())
 
 
 /// Commands to update documents
