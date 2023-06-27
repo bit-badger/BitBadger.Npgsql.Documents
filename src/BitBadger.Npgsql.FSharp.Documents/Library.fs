@@ -508,11 +508,11 @@ module Find =
     
     /// Execute a JSON containment query (@>), returning only the first result
     let firstByContains<'T> tableName (criteria : obj) =
-        WithProps.Find.firstByContains tableName criteria (fromDataSource ())
+        WithProps.Find.firstByContains<'T> tableName criteria (fromDataSource ())
 
     /// Execute a JSON Path match query (@?), returning only the first result
     let firstByJsonPath<'T> tableName jsonPath =
-        WithProps.Find.firstByJsonPath tableName jsonPath (fromDataSource ())
+        WithProps.Find.firstByJsonPath<'T> tableName jsonPath (fromDataSource ())
 
 
 /// Commands to update documents

@@ -487,11 +487,44 @@ let integrationTests =
                     Expect.isTrue (Option.isSome doc) "There should have been a document returned"
                     Expect.equal doc.Value.Id "two" "The incorrect document was returned"
                 }
+                testTask "succeeds when multiple documents are found" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    let! doc = Find.firstByContains<JsonDocument> Db.tableName {| Sub = {| Foo = "green" |} |}
+                    Expect.isTrue (Option.isSome doc) "There should have been a document returned"
+                    Expect.contains [ "two"; "four" ] doc.Value.Id "An incorrect document was returned"
+                }
                 testTask "succeeds when a document is not found" {
                     use db = Db.buildDatabase ()
                     do! loadDocs ()
 
-                    let! doc = Find.byId<JsonDocument> Db.tableName "three hundred eighty-seven"
+                    let! doc = Find.firstByContains<JsonDocument> Db.tableName {| Value = "absent" |}
+                    Expect.isFalse (Option.isSome doc) "There should not have been a document returned"
+                }
+            ]
+            testList "firstByJsonPath" [
+                testTask "succeeds when a document is found" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    let! doc = Find.firstByJsonPath<JsonDocument> Db.tableName """$.Value ? (@ == "FIRST!")"""
+                    Expect.isTrue (Option.isSome doc) "There should have been a document returned"
+                    Expect.equal doc.Value.Id "one" "The incorrect document was returned"
+                }
+                testTask "succeeds when multiple documents are found" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    let! doc = Find.firstByJsonPath<JsonDocument> Db.tableName """$.Sub.Foo ? (@ == "green")"""
+                    Expect.isTrue (Option.isSome doc) "There should have been a document returned"
+                    Expect.contains [ "two"; "four" ] doc.Value.Id "An incorrect document was returned"
+                }
+                testTask "succeeds when a document is not found" {
+                    use db = Db.buildDatabase ()
+                    do! loadDocs ()
+
+                    let! doc = Find.firstByJsonPath<JsonDocument> Db.tableName """$.Id ? (@ == "nope")"""
                     Expect.isFalse (Option.isSome doc) "There should not have been a document returned"
                 }
             ]

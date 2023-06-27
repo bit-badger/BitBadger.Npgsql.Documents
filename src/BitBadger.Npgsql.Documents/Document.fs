@@ -248,11 +248,11 @@ module Find =
 
     /// Execute a JSON containment query (@>), returning only the first result
     let FirstByContains<'T when 'T : null> (tableName : string, criteria : obj) =
-        WithProps.Find.FirstByContains (tableName, criteria, FS.fromDataSource ())
+        WithProps.Find.FirstByContains<'T> (tableName, criteria, FS.fromDataSource ())
 
     /// Execute a JSON Path match query (@?), returning only the first result
     let FirstByJsonPath<'T when 'T : null> (tableName : string, jsonPath : string) =
-        WithProps.Find.FirstByJsonPath (tableName, jsonPath, FS.fromDataSource ())
+        WithProps.Find.FirstByJsonPath<'T> (tableName, jsonPath, FS.fromDataSource ())
 
 
 /// Commands to update documents
