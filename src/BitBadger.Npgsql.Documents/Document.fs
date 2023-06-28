@@ -92,6 +92,20 @@ module WithProps =
             return ResizeArray result
         }
 
+        /// Execute a JSON containment query (@>), returning only the first result
+        let FirstByContains<'T when 'T : null> (tableName : string, criteria : obj, sqlProps : Sql.SqlProps)
+                : Task<'T> = backgroundTask {
+            let! result = FS.WithProps.Find.firstByContains tableName criteria sqlProps
+            return Option.toObj result
+        }
+
+        /// Execute a JSON Path match query (@?), returning only the first result
+        let FirstByJsonPath<'T when 'T : null> (tableName : string, jsonPath : string, sqlProps : Sql.SqlProps)
+                : Task<'T> = backgroundTask {
+            let! result = FS.WithProps.Find.firstByJsonPath tableName jsonPath sqlProps
+            return Option.toObj result
+        }
+
     /// Commands to update documents
     module Update =
         
@@ -228,8 +242,17 @@ module Find =
     let ByContains<'T> (tableName : string, criteria : obj) =
         WithProps.Find.ByContains<'T> (tableName, criteria, FS.fromDataSource ())
 
+    /// Execute a JSON Path match query (@?)
     let ByJsonPath<'T> (tableName : string, jsonPath : string) =
         WithProps.Find.ByJsonPath<'T> (tableName, jsonPath, FS.fromDataSource ())
+
+    /// Execute a JSON containment query (@>), returning only the first result
+    let FirstByContains<'T when 'T : null> (tableName : string, criteria : obj) =
+        WithProps.Find.FirstByContains<'T> (tableName, criteria, FS.fromDataSource ())
+
+    /// Execute a JSON Path match query (@?), returning only the first result
+    let FirstByJsonPath<'T when 'T : null> (tableName : string, jsonPath : string) =
+        WithProps.Find.FirstByJsonPath<'T> (tableName, jsonPath, FS.fromDataSource ())
 
 
 /// Commands to update documents
