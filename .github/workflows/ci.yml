@@ -18,7 +18,7 @@ jobs:
     strategy:
       matrix:
         dotnet-version: [ "6.0", "7.0" ]
-        postgres-version: [ "12", "13", "14", "latest" ]
+        postgres-version: [ "12", "13", "14", "15", "latest" ]
     
     services:
       postgres:
