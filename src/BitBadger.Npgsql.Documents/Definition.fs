@@ -16,6 +16,10 @@ let private convertIndexType idxType =
 let CreateTable (name : string) =
     FS.Definition.createTable name
 
+/// SQL statement to create a key index for a document table
+let CreateKey (name : string) =
+    FS.Definition.createKey name
+
 /// SQL statement to create an index on documents in the specified table
 let CreateIndex (name : string, idxType : DocumentIndex) =
     FS.Definition.createIndex name (convertIndexType idxType)
@@ -37,5 +41,3 @@ let EnsureTable name =
 
 let EnsureIndex (name, idxType) =
     WithProps.EnsureIndex (name, idxType, FS.fromDataSource ())
-
-

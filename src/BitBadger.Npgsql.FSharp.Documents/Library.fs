@@ -54,6 +54,17 @@ module Configuration =
         match dataSourceValue with
         | Some source -> source
         | None -> invalidOp "Please provide a data source before attempting data access"
+    
+    /// The serialized name of the ID field for documents
+    let mutable idFieldValue = "id"
+    
+    /// Specify the name of the ID field for documents
+    let useIdField it =
+        idFieldValue <- it
+    
+    /// Retrieve the currently configured ID field for documents
+    let idField () =
+        idFieldValue
 
 
 open Npgsql.FSharp
@@ -76,8 +87,13 @@ module Definition =
 
     /// SQL statement to create a document table
     let createTable name =
-        $"CREATE TABLE IF NOT EXISTS %s{name} (id TEXT NOT NULL PRIMARY KEY, data JSONB NOT NULL)"
+        $"CREATE TABLE IF NOT EXISTS %s{name} (data JSONB NOT NULL)"
     
+    /// SQL statement to create a key index for a document table
+    let createKey (name : string) =
+        let tableName = name.Split(".") |> Array.last
+        $"CREATE UNIQUE INDEX IF NOT EXISTS idx_{tableName}_key ON {name} ((data -> '{Configuration.idField ()}'))"
+        
     /// SQL statement to create an index on documents in the specified table
     let createIndex (name : string) idxType =
         let extraOps = match idxType with Full -> "" | Optimized -> " jsonb_path_ops"
@@ -88,8 +104,10 @@ module Definition =
     module WithProps =
         
         /// Create a document table
-        let ensureTable name sqlProps =
-            sqlProps |> Sql.query (createTable name) |> Sql.executeNonQueryAsync |> ignoreTask
+        let ensureTable name sqlProps = backgroundTask {
+            do! sqlProps |> Sql.query (createTable name) |> Sql.executeNonQueryAsync |> ignoreTask
+            do! sqlProps |> Sql.query (createKey   name) |> Sql.executeNonQueryAsync |> ignoreTask
+        }
 
         /// Create an index on documents in the specified table
         let ensureIndex name idxType sqlProps =
@@ -111,6 +129,10 @@ module Query =
     let selectFromTable tableName =
         $"SELECT data FROM %s{tableName}"
     
+    /// Create a WHERE clause fragment to implement an ID-based query
+    let whereById paramName =
+        $"data -> '{Configuration.idField ()}' = %s{paramName}"
+    
     /// Create a WHERE clause fragment to implement a @> (JSON contains) condition
     let whereDataContains paramName =
         $"data @> %s{paramName}"
@@ -129,33 +151,33 @@ module Query =
     
     /// Query to insert a document
     let insert tableName =
-        $"INSERT INTO %s{tableName} (id, data) VALUES (@id, @data)"
+        $"INSERT INTO %s{tableName} VALUES (@data)"
 
     /// Query to save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
     let save tableName =
-        $"INSERT INTO %s{tableName} (id, data) VALUES (@id, @data) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data"
+        $"INSERT INTO %s{tableName} VALUES (@data) ON CONFLICT (data) DO UPDATE SET data = EXCLUDED.data"
     
     /// Queries for counting documents
     module Count =
         
         /// Query to count all documents in a table
         let all tableName =
-            $"SELECT COUNT(id) AS it FROM %s{tableName}"
+            $"SELECT COUNT(*) AS it FROM %s{tableName}"
         
         /// Query to count matching documents using a JSON containment query (@>)
         let byContains tableName =
-            $"""SELECT COUNT(id) AS it FROM %s{tableName} WHERE {whereDataContains "@criteria"}"""
+            $"""SELECT COUNT(*) AS it FROM %s{tableName} WHERE {whereDataContains "@criteria"}"""
         
         /// Query to count matching documents using a JSON Path match (@?)
         let byJsonPath tableName =
-            $"""SELECT COUNT(id) AS it FROM %s{tableName} WHERE {whereJsonPathMatches "@path"}"""
+            $"""SELECT COUNT(*) AS it FROM %s{tableName} WHERE {whereJsonPathMatches "@path"}"""
     
     /// Queries for determining document existence
     module Exists =
 
         /// Query to determine if a document exists for the given ID
         let byId tableName =
-            $"SELECT EXISTS (SELECT 1 FROM %s{tableName} WHERE id = @id) AS it"
+            $"""SELECT EXISTS (SELECT 1 FROM %s{tableName} WHERE {whereById "@id"}) AS it"""
 
         /// Query to determine if documents exist using a JSON containment query (@>)
         let byContains tableName =
@@ -170,7 +192,7 @@ module Query =
 
         /// Query to retrieve a document by its ID
         let byId tableName =
-            $"{selectFromTable tableName} WHERE id = @id"
+            $"""{selectFromTable tableName} WHERE {whereById "@id"}"""
         
         /// Query to retrieve documents using a JSON containment query (@>)
         let byContains tableName =
@@ -185,11 +207,11 @@ module Query =
 
         /// Query to update a document
         let full tableName =
-            $"UPDATE %s{tableName} SET data = @data WHERE id = @id"
+            $"""UPDATE %s{tableName} SET data = @data WHERE {whereById "@id"}"""
 
         /// Query to update a document
         let partialById tableName =
-            $"UPDATE %s{tableName} SET data = data || @data WHERE id = @id"
+            $"""UPDATE %s{tableName} SET data = data || @data WHERE {whereById "@id"}"""
         
         /// Query to update partial documents matching a JSON containment query (@>)
         let partialByContains tableName =
@@ -204,7 +226,7 @@ module Query =
         
         /// Query to delete a document by its ID
         let byId tableName =
-            $"DELETE FROM %s{tableName} WHERE id = @id"
+            $"""DELETE FROM %s{tableName} WHERE {whereById "@id"}"""
 
         /// Query to delete documents using a JSON containment query (@>)
         let byContains tableName =
@@ -224,32 +246,31 @@ let fromData<'T> row : 'T =
     fromDocument "data" row
 
 /// Execute a non-query statement to manipulate a document
-let private executeNonQuery query docId (document : 'T) sqlProps =
+let private executeNonQuery query (document : 'T) sqlProps =
+    sqlProps
+    |> Sql.query query
+    |> Sql.parameters [ "@data", Query.jsonbDocParam document ]
+    |> Sql.executeNonQueryAsync
+    |> ignoreTask
+
+/// Execute a non-query statement to manipulate a document with an ID specified
+let private executeNonQueryWithId query docId (document : 'T) sqlProps =
     sqlProps
     |> Sql.query query
     |> Sql.parameters (Query.docParameters docId document)
     |> Sql.executeNonQueryAsync
     |> ignoreTask
 
-
 /// Versions of queries that accept SqlProps as the last parameter
 module WithProps =
     
     /// Insert a new document
-    let insert<'T> tableName docId (document : 'T) sqlProps =
-        executeNonQuery (Query.insert tableName) docId document sqlProps
-
-    /// Insert a new document
-    let insertFunc<'T> tableName (idFunc : 'T -> string) (document : 'T) sqlProps =
-        insert<'T> tableName (idFunc document) document sqlProps
+    let insert<'T> tableName (document : 'T) sqlProps =
+        executeNonQuery (Query.insert tableName) document sqlProps
 
     /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
-    let save<'T> tableName docId (document : 'T) sqlProps =
-        executeNonQuery (Query.save tableName) docId document sqlProps
-
-    /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
-    let saveFunc<'T> tableName (idFunc : 'T -> string) (document : 'T) sqlProps =
-        save tableName (idFunc document) document sqlProps
+    let save<'T> tableName (document : 'T) sqlProps =
+        executeNonQuery (Query.save tableName) document sqlProps
 
     /// Commands to count documents
     [<RequireQualifiedAccess>]
@@ -352,7 +373,7 @@ module WithProps =
         
         /// Update an entire document
         let full<'T> tableName docId (document : 'T) sqlProps =
-            executeNonQuery (Query.Update.full tableName) docId document sqlProps
+            executeNonQueryWithId (Query.Update.full tableName) docId document sqlProps
         
         /// Update an entire document
         let fullFunc<'T> tableName (idFunc : 'T -> string) (document : 'T) sqlProps =
@@ -360,7 +381,7 @@ module WithProps =
         
         /// Update a partial document
         let partialById tableName docId (partial : obj) sqlProps =
-            executeNonQuery (Query.Update.partialById tableName) docId partial sqlProps
+            executeNonQueryWithId (Query.Update.partialById tableName) docId partial sqlProps
         
         /// Update partial documents using a JSON containment query in the WHERE clause (@>)
         let partialByContains tableName (criteria : obj) (partial : obj) sqlProps =
@@ -384,7 +405,7 @@ module WithProps =
         
         /// Delete a document by its ID
         let byId tableName docId sqlProps =
-            executeNonQuery (Query.Delete.byId tableName) docId {||} sqlProps
+            executeNonQueryWithId (Query.Delete.byId tableName) docId {||} sqlProps
 
         /// Delete documents by matching a JSON contains query (@>)
         let byContains tableName (criteria : obj) sqlProps =
@@ -397,7 +418,7 @@ module WithProps =
         /// Delete documents by matching a JSON Path match query (@?)
         let byJsonPath tableName path sqlProps =
             sqlProps
-            |> Sql.query $"""DELETE FROM %s{tableName} WHERE {Query.whereJsonPathMatches "@path"}"""
+            |> Sql.query (Query.Delete.byJsonPath tableName)
             |> Sql.parameters [ "@path", Sql.string path ]
             |> Sql.executeNonQueryAsync
             |> ignoreTask
@@ -436,20 +457,12 @@ module WithProps =
 
 
 /// Insert a new document
-let insert<'T> tableName docId (document : 'T) =
-    WithProps.insert tableName docId document (fromDataSource ())
-
-/// Insert a new document
-let insertFunc<'T> tableName idFunc (document : 'T) =
-    WithProps.insertFunc tableName idFunc document (fromDataSource ())
+let insert<'T> tableName (document : 'T) =
+    WithProps.insert tableName document (fromDataSource ())
 
 /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
-let save<'T> tableName docId (document : 'T) =
-    WithProps.save<'T> tableName docId document (fromDataSource ())
-
-/// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
-let saveFunc<'T> tableName idFunc (document : 'T) =
-    WithProps.saveFunc<'T> tableName idFunc document (fromDataSource ())
+let save<'T> tableName (document : 'T) =
+    WithProps.save<'T> tableName document (fromDataSource ())
 
 
 /// Queries to count documents

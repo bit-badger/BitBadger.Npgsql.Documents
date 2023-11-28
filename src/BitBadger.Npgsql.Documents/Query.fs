@@ -8,6 +8,10 @@ module FS = BitBadger.Npgsql.FSharp.Documents
 let SelectFromTable (tableName : string) =
     FS.Query.selectFromTable tableName
 
+/// Create a WHERE clause fragment to implement an ID-based query
+let WhereById (paramName : string) =
+    FS.Query.whereById paramName
+
 /// Create a WHERE clause fragment to implement a @> (JSON contains) condition
 let WhereDataContains (paramName : string) =
     FS.Query.whereDataContains paramName

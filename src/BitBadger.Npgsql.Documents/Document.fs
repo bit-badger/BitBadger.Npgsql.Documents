@@ -17,20 +17,12 @@ let FromData<'T> (row : RowReader) : 'T =
 module WithProps =
     
     /// Insert a new document
-    let Insert<'T> (tableName : string, docId : string, document : 'T, sqlProps : Sql.SqlProps) =
-        FS.WithProps.insert tableName docId document sqlProps
-
-    /// Insert a new document
-    let InsertFunc<'T> (tableName : string, idFunc : System.Func<'T, string>, document : 'T, sqlProps : Sql.SqlProps) =
-        FS.WithProps.insert tableName (idFunc.Invoke document) document sqlProps
+    let Insert<'T> (tableName : string, document : 'T, sqlProps : Sql.SqlProps) =
+        FS.WithProps.insert tableName document sqlProps
 
     /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
-    let Save<'T> (tableName : string, docId : string, document : 'T, sqlProps : Sql.SqlProps) =
-        FS.WithProps.save tableName docId document sqlProps
-
-    /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
-    let SaveFunc<'T> (tableName : string, idFunc : System.Func<'T, string>, document : 'T, sqlProps : Sql.SqlProps) =
-        FS.WithProps.save tableName (idFunc.Invoke document) document sqlProps
+    let Save<'T> (tableName : string, document : 'T, sqlProps : Sql.SqlProps) =
+        FS.WithProps.save tableName document sqlProps
 
     /// Commands to count documents
     module Count =
@@ -179,20 +171,12 @@ module WithProps =
 
 
 /// Insert a new document
-let Insert<'T> (tableName : string, docId : string, document : 'T) =
-    WithProps.Insert (tableName, docId, document, FS.fromDataSource ())
-
-/// Insert a new document
-let InsertFunc<'T> (tableName : string, idFunc : System.Func<'T, string>, document : 'T) =
-    WithProps.InsertFunc (tableName, idFunc, document, FS.fromDataSource ())
+let Insert<'T> (tableName : string, document : 'T) =
+    WithProps.Insert (tableName, document, FS.fromDataSource ())
 
 /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
-let Save<'T> (tableName : string, docId : string, document : 'T) =
-    WithProps.Save<'T> (tableName, docId, document, FS.fromDataSource ())
-
-/// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
-let SaveFunc<'T> (tableName : string, idFunc : System.Func<'T, string>, document : 'T) =
-    WithProps.SaveFunc<'T> (tableName, idFunc, document, FS.fromDataSource ())
+let Save<'T> (tableName : string, document : 'T) =
+    WithProps.Save<'T> (tableName, document, FS.fromDataSource ())
 
 
 /// Commands to count documents

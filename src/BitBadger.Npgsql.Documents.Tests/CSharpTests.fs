@@ -25,8 +25,13 @@ let unitTests =
         testList "Definition" [
             test "CreateTable succeeds" {
                 Expect.equal (Definition.CreateTable Db.tableName)
-                    $"CREATE TABLE IF NOT EXISTS {Db.tableName} (id TEXT NOT NULL PRIMARY KEY, data JSONB NOT NULL)"
+                    $"CREATE TABLE IF NOT EXISTS {Db.tableName} (data JSONB NOT NULL)"
                     "CREATE TABLE statement not constructed correctly"
+            }
+            test "CreateKey succeeds" {
+                Expect.equal (Definition.CreateKey Db.tableName)
+                    $"CREATE UNIQUE INDEX IF NOT EXISTS idx_{Db.tableName}_key ON {Db.tableName} ((data -> 'id'))"
+                    "CREATE INDEX for key statement not constructed properly"
             }
             test "CreateIndex succeeds for full index" {
                 Expect.equal (Definition.CreateIndex ("schema.tbl", DocumentIndex.Full))
@@ -44,10 +49,13 @@ let unitTests =
                 Expect.equal (Query.SelectFromTable Db.tableName) $"SELECT data FROM {Db.tableName}"
                     "SELECT statement not correct"
             }
+            test "WhereById succeeds" {
+                Expect.equal (Query.WhereById "@id") "data -> 'id' = @id" "WHERE clause not correct"
+            }
             test "WhereDataContains succeeds" {
                 Expect.equal (Query.WhereDataContains "@test") "data @> @test" "WHERE clause not correct"
             }
-            test "WhereJsonPathMatches succeds" {
+            test "WhereJsonPathMatches succeeds" {
                 Expect.equal (Query.WhereJsonPathMatches "@path") "data @? @path::jsonpath" "WHERE clause not correct"
             }
             test "JsonbDocParam succeeds" {
@@ -63,34 +71,34 @@ let unitTests =
                 Expect.equal parameters expected "There should have been 2 parameters, one string and one JSONB"
             }
             test "Insert succeeds" {
-                Expect.equal (Query.Insert Db.tableName) $"INSERT INTO {Db.tableName} (id, data) VALUES (@id, @data)"
+                Expect.equal (Query.Insert Db.tableName) $"INSERT INTO {Db.tableName} VALUES (@data)"
                     "INSERT statement not correct"
             }
             test "Save succeeds" {
                 Expect.equal (Query.Save Db.tableName)
-                    $"INSERT INTO {Db.tableName} (id, data) VALUES (@id, @data) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data"
+                    $"INSERT INTO {Db.tableName} VALUES (@data) ON CONFLICT (data) DO UPDATE SET data = EXCLUDED.data"
                     "INSERT ON CONFLICT UPDATE statement not correct"
             }
             testList "Count" [
                 test "All succeeds" {
-                    Expect.equal (Query.Count.All Db.tableName) $"SELECT COUNT(id) AS it FROM {Db.tableName}"
+                    Expect.equal (Query.Count.All Db.tableName) $"SELECT COUNT(*) AS it FROM {Db.tableName}"
                         "Count query not correct"
                 }
                 test "ByContains succeeds" {
                     Expect.equal (Query.Count.ByContains Db.tableName)
-                        $"SELECT COUNT(id) AS it FROM {Db.tableName} WHERE data @> @criteria"
+                        $"SELECT COUNT(*) AS it FROM {Db.tableName} WHERE data @> @criteria"
                         "JSON containment count query not correct"
                 }
                 test "ByJsonPath succeeds" {
                     Expect.equal (Query.Count.ByJsonPath Db.tableName)
-                        $"SELECT COUNT(id) AS it FROM {Db.tableName} WHERE data @? @path::jsonpath"
+                        $"SELECT COUNT(*) AS it FROM {Db.tableName} WHERE data @? @path::jsonpath"
                         "JSON Path match count query not correct"
                 }
             ]
             testList "Exists" [
                 test "ById succeeds" {
                     Expect.equal (Query.Exists.ById Db.tableName)
-                        $"SELECT EXISTS (SELECT 1 FROM {Db.tableName} WHERE id = @id) AS it"
+                        $"SELECT EXISTS (SELECT 1 FROM {Db.tableName} WHERE data -> 'id' = @id) AS it"
                         "ID existence query not correct"
                 }
                 test "ByContains succeeds" {
@@ -106,8 +114,8 @@ let unitTests =
             ]
             testList "Find" [
                 test "ById succeeds" {
-                    Expect.equal (Query.Find.ById Db.tableName) $"SELECT data FROM {Db.tableName} WHERE id = @id"
-                        "SELECT by ID query not correct"
+                    Expect.equal (Query.Find.ById Db.tableName)
+                        $"SELECT data FROM {Db.tableName} WHERE data -> 'id' = @id" "SELECT by ID query not correct"
                 }
                 test "ByContains succeeds" {
                     Expect.equal (Query.Find.ByContains Db.tableName)
@@ -123,11 +131,12 @@ let unitTests =
             testList "Update" [
                 test "Full succeeds" {
                     Expect.equal (Query.Update.Full Db.tableName)
-                        $"UPDATE {Db.tableName} SET data = @data WHERE id = @id" "UPDATE full statement not correct"
+                        $"UPDATE {Db.tableName} SET data = @data WHERE data -> 'id' = @id"
+                        "UPDATE full statement not correct"
                 }
                 test "PartialById succeeds" {
                     Expect.equal (Query.Update.PartialById Db.tableName)
-                        $"UPDATE {Db.tableName} SET data = data || @data WHERE id = @id"
+                        $"UPDATE {Db.tableName} SET data = data || @data WHERE data -> 'id' = @id"
                         "UPDATE partial by ID statement not correct"
                 }
                 test "PartialByContains succeeds" {
@@ -143,7 +152,8 @@ let unitTests =
             ]
             testList "Delete" [
                 test "ById succeeds" {
-                    Expect.equal (Query.Delete.ById Db.tableName) $"DELETE FROM {Db.tableName} WHERE id = @id"
+                    Expect.equal (Query.Delete.ById Db.tableName)
+                        $"DELETE FROM {Db.tableName} WHERE data -> 'id' = @id"
                         "DELETE by ID query not correct"
                 }
                 test "ByContains succeeds" {
@@ -177,7 +187,7 @@ let integrationTests =
         JsonDocument (Id = "five", Value = "purple", NumValue = 18)
     ]
     let loadDocs () = backgroundTask {
-        for doc in documents do do! Insert (Db.tableName, doc.Id, doc)
+        for doc in documents do do! Insert (Db.tableName, doc)
     }
     testList "Integration" [
         testList "Configuration" [
@@ -214,10 +224,14 @@ let integrationTests =
                 finally
                     Configuration.UseSerializer FS.Configuration.defaultSerializer
             }
-            test "serializer returns configured serializer" {
+            test "Serializer returns configured serializer" {
                 Expect.isTrue
                     (obj.ReferenceEquals (FS.Configuration.defaultSerializer, Configuration.Serializer ()))
                     "Serializer should have been the same"
+            }
+            test "UseIdField / IdField succeeds" {
+                Configuration.UseIdField "Id"
+                Expect.equal (Configuration.IdField ()) "Id" "useIdField did not set the ID field"
             }
         ]
         testList "Definition" [
@@ -227,13 +241,21 @@ let integrationTests =
                     Sql.connect db.ConnectionString
                     |> Sql.query "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'ensured') AS it"
                     |> Sql.executeRowAsync (fun row -> row.bool "it")
+                let keyExists () =
+                    Sql.connect db.ConnectionString
+                    |> Sql.query "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'idx_ensured_key') AS it"
+                    |> Sql.executeRowAsync (fun row -> row.bool "it")
                 
-                let! exists = tableExists ()
-                Expect.isFalse exists "The table should not exist already"
+                let! exists     = tableExists ()
+                let! alsoExists = keyExists ()
+                Expect.isFalse exists     "The table should not exist already"
+                Expect.isFalse alsoExists "The key index should not exist already"
 
                 do! Definition.EnsureTable "ensured"
-                let! exists' = tableExists ()
-                Expect.isTrue exists' "The table should now exist"
+                let! exists'     = tableExists ()
+                let! alsoExists' = keyExists   ()
+                Expect.isTrue exists'     "The table should now exist"
+                Expect.isTrue alsoExists' "The key index should now exist"
             }
             testTask "EnsureIndex succeeds" {
                 use db = Db.buildDatabase ()
@@ -258,92 +280,48 @@ let integrationTests =
                 let! before = Find.All<SubDocument> Db.tableName
                 Expect.hasCountOf before 0u isTrue "There should be no documents in the table"
 
-                do! Insert (Db.tableName, "turkey", SubDocument (Foo = "gobble", Bar = "gobble"))
-                let! after = Find.All<SubDocument> Db.tableName
+                do! Insert (Db.tableName,
+                            JsonDocument(Id = "turkey", Sub = Some (SubDocument (Foo = "gobble", Bar = "gobble"))))
+                let! after = Find.All<JsonDocument> Db.tableName
                 Expect.hasCountOf after 1u isTrue "There should have been one document inserted"
             }
             testTask "fails for duplicate key" {
                 use db = Db.buildDatabase ()
-                do! Insert (Db.tableName, "test", SubDocument (Foo = "blah", Bar = ""))
-                Expect.throws (fun () ->
-                    Insert (Db.tableName, "test", SubDocument (Foo = "oof", Bar = ""))
-                    |> Async.AwaitTask |> Async.RunSynchronously)
-                    "An exception should have been raised for duplicate document ID insert"
-            }
-        ]
-        testList "Document.InsertFunc" [
-            testTask "succeeds" {
-                use db = Db.buildDatabase ()
-                let! before = Find.All<SubDocument> Db.tableName
-                Expect.hasCountOf before 0u isTrue "There should be no documents in the table"
-
-                do! InsertFunc (Db.tableName, System.Func<JsonDocument, string> (fun it -> it.Id),
-                                JsonDocument (Id = "turkey", Value = "", NumValue = 0, Sub = None))
-                let! after = Find.All<SubDocument> Db.tableName
-                Expect.hasCountOf after 1u isTrue "There should have been one document inserted"
-            }
-            testTask "fails for duplicate key" {
-                use db = Db.buildDatabase ()
-                do! Insert (Db.tableName, "test", JsonDocument (Id = "test"))
-                Expect.throws (fun () ->
-                    InsertFunc (Db.tableName, System.Func<JsonDocument, string> (fun it -> it.Id),
-                                JsonDocument (Id = "test", Value = "double"))
-                    |> Async.AwaitTask |> Async.RunSynchronously)
+                let testDoc = JsonDocument (Id = "test", Sub = Some (SubDocument (Foo = "blah", Bar = "")))
+                do! Insert (Db.tableName, testDoc)
+                Expect.throws (fun () -> Insert (Db.tableName, testDoc) |> Async.AwaitTask |> Async.RunSynchronously)
                     "An exception should have been raised for duplicate document ID insert"
             }
         ]
         testList "Document.Save" [
             testTask "succeeds when a document is inserted" {
                 use db = Db.buildDatabase ()
-                let! before = Find.All<SubDocument> Db.tableName
+                let! before = Find.All<JsonDocument> Db.tableName
                 Expect.hasCountOf before 0u isTrue "There should be no documents in the table"
 
-                do! Save (Db.tableName, "test", SubDocument (Foo = "a", Bar = "b"))
-                let! after = Find.All<SubDocument> Db.tableName
+                do! Save (Db.tableName, JsonDocument(Id = "test"))
+                let! after = Find.All<JsonDocument> Db.tableName
                 Expect.hasCountOf after 1u isTrue "There should have been one document inserted"
             }
             testTask "succeeds when a document is updated" {
                 use db = Db.buildDatabase ()
-                do! Insert (Db.tableName, "test", SubDocument (Foo = "a", Bar = "b"))
-
-                let! before = Find.ById<SubDocument> (Db.tableName, "test")
-                if isNull before then Expect.isTrue false "There should have been a document returned"
-                Expect.equal (before :> SubDocument).Foo "a" "The document is not correct"
-                Expect.equal (before :> SubDocument).Bar "b" "The document is not correct"
-
-                do! Save (Db.tableName, "test", SubDocument (Foo = "c", Bar = "d"))
-                let! after = Find.ById<SubDocument> (Db.tableName, "test")
-                if isNull after then Expect.isTrue false "There should have been a document returned post-update"
-                Expect.equal (after :> SubDocument).Foo "c" "The updated document is not correct"
-                Expect.equal (after :> SubDocument).Bar "d" "The updated document is not correct"
-            }
-        ]
-        testList "Document.SaveFunc" [
-            testTask "succeeds when a document is inserted" {
-                use db = Db.buildDatabase ()
-                let! before = Find.All<SubDocument> Db.tableName
-                Expect.hasCountOf before 0u isTrue "There should be no documents in the table"
-
-                do! SaveFunc (Db.tableName, System.Func<JsonDocument, string> (fun it -> it.Id),
-                              JsonDocument (Id = "test", Value = "fresh"))
-                let! after = Find.All<SubDocument> Db.tableName
-                Expect.hasCountOf after 1u isTrue "There should have been one document inserted"
-            }
-            testTask "succeeds when a document is updated" {
-                use db = Db.buildDatabase ()
-                do! Insert (Db.tableName, "test", JsonDocument (Id = "test", Value = "original"))
+                let testDoc = JsonDocument (Id = "test", Sub = Some (SubDocument (Foo = "a", Bar = "b")))
+                do! Insert (Db.tableName, testDoc)
 
                 let! before = Find.ById<JsonDocument> (Db.tableName, "test")
                 if isNull before then Expect.isTrue false "There should have been a document returned"
-                Expect.equal (before :> JsonDocument).Id "test" "The document is not correct"
-                Expect.equal (before :> JsonDocument).Value "original" "The document is not correct"
+                let before = before :> JsonDocument
+                Expect.equal before.Id "test" "The document is not correct"
+                Expect.isSome before.Sub "There should have been a sub-document"
+                Expect.equal before.Sub.Value.Foo "a" "The document is not correct"
+                Expect.equal before.Sub.Value.Bar "b" "The document is not correct"
 
-                do! SaveFunc (Db.tableName, System.Func<JsonDocument, string> (fun it -> it.Id),
-                              JsonDocument (Id = "test", Value = "updated"))
+                do! Save (Db.tableName, JsonDocument (Id = "test"))
                 let! after = Find.ById<JsonDocument> (Db.tableName, "test")
                 if isNull after then Expect.isTrue false "There should have been a document returned post-update"
-                Expect.equal (after :> JsonDocument).Id "test" "The updated document is not correct"
-                Expect.equal (after :> JsonDocument).Value "updated" "The updated document is not correct"
+                let after = after :> JsonDocument
+                Expect.equal after.Id "test" "The updated document is not correct"
+                Expect.isNone after.Sub "The updated document is not correct"
             }
         ]
         testList "Document.Count" [
@@ -424,9 +402,9 @@ let integrationTests =
                 testTask "succeeds when there is data" {
                     use db = Db.buildDatabase ()
 
-                    do! Insert (Db.tableName, "abc", SubDocument (Foo = "one", Bar = "two"))
-                    do! Insert (Db.tableName, "def", SubDocument (Foo = "three", Bar = "four"))
-                    do! Insert (Db.tableName, "ghi", SubDocument (Foo = "five", Bar = "six"))
+                    do! Insert (Db.tableName, SubDocument (Foo = "one", Bar = "two"))
+                    do! Insert (Db.tableName, SubDocument (Foo = "three", Bar = "four"))
+                    do! Insert (Db.tableName, SubDocument (Foo = "five", Bar = "six"))
 
                     let! results = Find.All<SubDocument> Db.tableName
                     Expect.hasCountOf results 3u isTrue "There should have been 3 documents returned"
@@ -541,18 +519,26 @@ let integrationTests =
             testList "Full" [
                 testTask "succeeds when a document is updated" {
                     use db = Db.buildDatabase ()
-                    do! Insert (Db.tableName, "test", SubDocument (Foo = "green", Bar = ""))
+                    do! Insert (Db.tableName,
+                                JsonDocument (Id = "test", Sub = Some (SubDocument (Foo = "green", Bar = ""))))
 
-                    let! before = Find.ById<SubDocument> (Db.tableName, "test")
+                    let! before = Find.ById<JsonDocument> (Db.tableName, "test")
                     if isNull before then Expect.isTrue false "There should have been a document returned"
-                    Expect.equal (before :> SubDocument).Foo "green" "The document is not correct"
-                    Expect.equal (before :> SubDocument).Bar "" "The document is not correct"
+                    let before = before :> JsonDocument
+                    Expect.equal before.Id "test" "The document is not correct"
+                    Expect.isSome before.Sub "The document is not correct"
+                    Expect.equal before.Sub.Value.Foo "green" "The document is not correct"
+                    Expect.equal before.Sub.Value.Bar "" "The document is not correct"
 
-                    do! Update.Full (Db.tableName, "test", SubDocument (Foo = "blue", Bar = "red"))
-                    let! after = Find.ById<SubDocument> (Db.tableName, "test")
+                    do! Update.Full (Db.tableName, "test",
+                                     JsonDocument (Id = "test", Sub = Some (SubDocument (Foo = "blue", Bar = "red"))))
+                    let! after = Find.ById<JsonDocument> (Db.tableName, "test")
                     if isNull after then Expect.isTrue false "There should have been a document returned post-update"
-                    Expect.equal (after :> SubDocument).Foo "blue" "The updated document is not correct"
-                    Expect.equal (after :> SubDocument).Bar "red" "The updated document is not correct"
+                    let after = after :> JsonDocument
+                    Expect.equal after.Id "test" "The updated document is not correct"
+                    Expect.isSome after.Sub "The updated document is not correct"
+                    Expect.equal after.Sub.Value.Foo "blue" "The updated document is not correct"
+                    Expect.equal after.Sub.Value.Bar "red" "The updated document is not correct"
                 }
                 testTask "succeeds when no document is updated" {
                     use db = Db.buildDatabase ()
@@ -567,19 +553,21 @@ let integrationTests =
             testList "FullFunc" [
                 testTask "succeeds when a document is updated" {
                     use db = Db.buildDatabase ()
-                    do! Insert (Db.tableName, "green", JsonDocument (Id = "green", Value = "lime"))
+                    do! Insert (Db.tableName, JsonDocument (Id = "green", Value = "lime"))
 
                     let! before = Find.ById<JsonDocument> (Db.tableName, "green")
                     if isNull before then Expect.isTrue false "There should have been a document returned"
-                    Expect.equal (before :> JsonDocument).Id "green" "The document is not correct"
-                    Expect.equal (before :> JsonDocument).Value "lime" "The document is not correct"
+                    let before = before :> JsonDocument
+                    Expect.equal before.Id "green" "The document is not correct"
+                    Expect.equal before.Value "lime" "The document is not correct"
 
-                    do! Update.FullFunc (Db.tableName, System.Func<JsonDocument, string> (fun it -> it.Id),
+                    do! Update.FullFunc (Db.tableName, System.Func<JsonDocument, string> _.Id,
                                          JsonDocument (Id = "green", Value = "primary"))
                     let! after = Find.ById<JsonDocument> (Db.tableName, "green")
                     if isNull after then Expect.isTrue false "There should have been a document returned post-update"
-                    Expect.equal (after :> JsonDocument).Id "green" "The updated document is not correct"
-                    Expect.equal (after :> JsonDocument).Value "primary" "The updated document is not correct"
+                    let after = after :> JsonDocument
+                    Expect.equal after.Id "green" "The updated document is not correct"
+                    Expect.equal after.Value "primary" "The updated document is not correct"
                 }
                 testTask "succeeds when no document is updated" {
                     use db = Db.buildDatabase ()
@@ -714,7 +702,7 @@ let integrationTests =
                     do! loadDocs ()
 
                     let! doc =
-                        Custom.Single ($"SELECT data FROM {Db.tableName} WHERE id = @id",
+                        Custom.Single ($"SELECT data FROM {Db.tableName} WHERE data -> 'Id' = @id",
                                        Seq.singleton (Tuple.Create ("@id", Sql.string "one")), FromData<JsonDocument>)
                     Expect.isNotNull doc "There should have been a document returned"
                     Expect.equal (doc :> JsonDocument).Id "one" "The incorrect document was returned"
@@ -724,7 +712,7 @@ let integrationTests =
                     do! loadDocs ()
 
                     let! doc =
-                        Custom.Single ($"SELECT data FROM {Db.tableName} WHERE id = @id",
+                        Custom.Single ($"SELECT data FROM {Db.tableName} WHERE data -> 'Id' = @id",
                                        Seq.singleton (Tuple.Create ("@id", Sql.string "eighty")),
                                        FromData<JsonDocument>)
                     Expect.isNull doc "There should not have been a document returned"

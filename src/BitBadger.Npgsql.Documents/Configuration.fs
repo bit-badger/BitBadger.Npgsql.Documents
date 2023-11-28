@@ -19,3 +19,11 @@ let UseDataSource (source : NpgsqlDataSource) =
 /// Retrieve the currently configured data source
 let DataSource () =
     Configuration.dataSource ()
+
+/// Set the ID field name to use for documents
+let UseIdField (name : string) =
+    Configuration.useIdField name
+
+/// Retrieve the currently configured ID field name
+let IdField () =
+    Configuration.idField ()
