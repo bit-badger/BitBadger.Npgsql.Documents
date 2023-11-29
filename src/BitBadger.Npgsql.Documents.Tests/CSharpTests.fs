@@ -30,7 +30,7 @@ let unitTests =
             }
             test "CreateKey succeeds" {
                 Expect.equal (Definition.CreateKey Db.tableName)
-                    $"CREATE UNIQUE INDEX IF NOT EXISTS idx_{Db.tableName}_key ON {Db.tableName} ((data -> 'id'))"
+                    $"CREATE UNIQUE INDEX IF NOT EXISTS idx_{Db.tableName}_key ON {Db.tableName} ((data ->> 'id'))"
                     "CREATE INDEX for key statement not constructed properly"
             }
             test "CreateIndex succeeds for full index" {
@@ -50,7 +50,7 @@ let unitTests =
                     "SELECT statement not correct"
             }
             test "WhereById succeeds" {
-                Expect.equal (Query.WhereById "@id") "data -> 'id' = @id" "WHERE clause not correct"
+                Expect.equal (Query.WhereById "@id") "data ->> 'id' = @id" "WHERE clause not correct"
             }
             test "WhereDataContains succeeds" {
                 Expect.equal (Query.WhereDataContains "@test") "data @> @test" "WHERE clause not correct"
@@ -76,7 +76,7 @@ let unitTests =
             }
             test "Save succeeds" {
                 Expect.equal (Query.Save Db.tableName)
-                    $"INSERT INTO {Db.tableName} VALUES (@data) ON CONFLICT (data) DO UPDATE SET data = EXCLUDED.data"
+                    $"INSERT INTO {Db.tableName} VALUES (@data) ON CONFLICT (data ->> 'id') DO UPDATE SET data = EXCLUDED.data"
                     "INSERT ON CONFLICT UPDATE statement not correct"
             }
             testList "Count" [
@@ -98,7 +98,7 @@ let unitTests =
             testList "Exists" [
                 test "ById succeeds" {
                     Expect.equal (Query.Exists.ById Db.tableName)
-                        $"SELECT EXISTS (SELECT 1 FROM {Db.tableName} WHERE data -> 'id' = @id) AS it"
+                        $"SELECT EXISTS (SELECT 1 FROM {Db.tableName} WHERE data ->> 'id' = @id) AS it"
                         "ID existence query not correct"
                 }
                 test "ByContains succeeds" {
@@ -115,7 +115,7 @@ let unitTests =
             testList "Find" [
                 test "ById succeeds" {
                     Expect.equal (Query.Find.ById Db.tableName)
-                        $"SELECT data FROM {Db.tableName} WHERE data -> 'id' = @id" "SELECT by ID query not correct"
+                        $"SELECT data FROM {Db.tableName} WHERE data ->> 'id' = @id" "SELECT by ID query not correct"
                 }
                 test "ByContains succeeds" {
                     Expect.equal (Query.Find.ByContains Db.tableName)
@@ -131,12 +131,12 @@ let unitTests =
             testList "Update" [
                 test "Full succeeds" {
                     Expect.equal (Query.Update.Full Db.tableName)
-                        $"UPDATE {Db.tableName} SET data = @data WHERE data -> 'id' = @id"
+                        $"UPDATE {Db.tableName} SET data = @data WHERE data ->> 'id' = @id"
                         "UPDATE full statement not correct"
                 }
                 test "PartialById succeeds" {
                     Expect.equal (Query.Update.PartialById Db.tableName)
-                        $"UPDATE {Db.tableName} SET data = data || @data WHERE data -> 'id' = @id"
+                        $"UPDATE {Db.tableName} SET data = data || @data WHERE data ->> 'id' = @id"
                         "UPDATE partial by ID statement not correct"
                 }
                 test "PartialByContains succeeds" {
@@ -153,7 +153,7 @@ let unitTests =
             testList "Delete" [
                 test "ById succeeds" {
                     Expect.equal (Query.Delete.ById Db.tableName)
-                        $"DELETE FROM {Db.tableName} WHERE data -> 'id' = @id"
+                        $"DELETE FROM {Db.tableName} WHERE data ->> 'id' = @id"
                         "DELETE by ID query not correct"
                 }
                 test "ByContains succeeds" {
@@ -702,7 +702,7 @@ let integrationTests =
                     do! loadDocs ()
 
                     let! doc =
-                        Custom.Single ($"SELECT data FROM {Db.tableName} WHERE data -> 'Id' = @id",
+                        Custom.Single ($"SELECT data FROM {Db.tableName} WHERE data ->> 'Id' = @id",
                                        Seq.singleton (Tuple.Create ("@id", Sql.string "one")), FromData<JsonDocument>)
                     Expect.isNotNull doc "There should have been a document returned"
                     Expect.equal (doc :> JsonDocument).Id "one" "The incorrect document was returned"
@@ -712,7 +712,7 @@ let integrationTests =
                     do! loadDocs ()
 
                     let! doc =
-                        Custom.Single ($"SELECT data FROM {Db.tableName} WHERE data -> 'Id' = @id",
+                        Custom.Single ($"SELECT data FROM {Db.tableName} WHERE data ->> 'Id' = @id",
                                        Seq.singleton (Tuple.Create ("@id", Sql.string "eighty")),
                                        FromData<JsonDocument>)
                     Expect.isNull doc "There should not have been a document returned"

@@ -92,7 +92,7 @@ module Definition =
     /// SQL statement to create a key index for a document table
     let createKey (name : string) =
         let tableName = name.Split(".") |> Array.last
-        $"CREATE UNIQUE INDEX IF NOT EXISTS idx_{tableName}_key ON {name} ((data -> '{Configuration.idField ()}'))"
+        $"CREATE UNIQUE INDEX IF NOT EXISTS idx_{tableName}_key ON {name} ((data ->> '{Configuration.idField ()}'))"
         
     /// SQL statement to create an index on documents in the specified table
     let createIndex (name : string) idxType =
@@ -131,7 +131,7 @@ module Query =
     
     /// Create a WHERE clause fragment to implement an ID-based query
     let whereById paramName =
-        $"data -> '{Configuration.idField ()}' = %s{paramName}"
+        $"data ->> '{Configuration.idField ()}' = %s{paramName}"
     
     /// Create a WHERE clause fragment to implement a @> (JSON contains) condition
     let whereDataContains paramName =
@@ -155,7 +155,7 @@ module Query =
 
     /// Query to save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
     let save tableName =
-        $"INSERT INTO %s{tableName} VALUES (@data) ON CONFLICT (data) DO UPDATE SET data = EXCLUDED.data"
+        $"INSERT INTO %s{tableName} VALUES (@data) ON CONFLICT (data ->> 'id') DO UPDATE SET data = EXCLUDED.data"
     
     /// Queries for counting documents
     module Count =
