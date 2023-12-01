@@ -155,7 +155,8 @@ module Query =
 
     /// Query to save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
     let save tableName =
-        $"INSERT INTO %s{tableName} VALUES (@data) ON CONFLICT (data ->> 'id') DO UPDATE SET data = EXCLUDED.data"
+        sprintf "INSERT INTO %s VALUES (@data) ON CONFLICT ((data ->> '%s')) DO UPDATE SET data = EXCLUDED.data"
+                tableName (Configuration.idField ()) 
     
     /// Queries for counting documents
     module Count =

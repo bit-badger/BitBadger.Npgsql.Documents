@@ -60,9 +60,14 @@ let buildDatabase () =
     
     let database = ThrowawayDatabase.Create(connStr)
 
-    database.ConnectionString
-    |> Sql.connect
+    let sqlProps = Sql.connect database.ConnectionString
+    
+    sqlProps
     |> Sql.query (Definition.createTable tableName)
+    |> Sql.executeNonQuery
+    |> ignore
+    sqlProps
+    |> Sql.query (Definition.createKey tableName)
     |> Sql.executeNonQuery
     |> ignore
 

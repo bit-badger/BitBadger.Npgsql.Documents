@@ -57,7 +57,7 @@ let unitTests =
             test "whereDataContains succeeds" {
                 Expect.equal (Query.whereDataContains "@test") "data @> @test" "WHERE clause not correct"
             }
-            test "whereJsonPathMatches succeds" {
+            test "whereJsonPathMatches succeeds" {
                 Expect.equal (Query.whereJsonPathMatches "@path") "data @? @path::jsonpath" "WHERE clause not correct"
             }
             test "jsonbDocParam succeeds" {
@@ -78,7 +78,7 @@ let unitTests =
             }
             test "save succeeds" {
                 Expect.equal (Query.save Db.tableName)
-                    $"INSERT INTO {Db.tableName} VALUES (@data) ON CONFLICT (data ->> 'id') DO UPDATE SET data = EXCLUDED.data"
+                    $"INSERT INTO {Db.tableName} VALUES (@data) ON CONFLICT ((data ->> 'id')) DO UPDATE SET data = EXCLUDED.data"
                     "INSERT ON CONFLICT UPDATE statement not correct"
             }
             testList "Count" [

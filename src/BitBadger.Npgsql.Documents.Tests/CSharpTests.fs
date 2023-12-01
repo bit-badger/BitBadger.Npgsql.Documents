@@ -76,7 +76,7 @@ let unitTests =
             }
             test "Save succeeds" {
                 Expect.equal (Query.Save Db.tableName)
-                    $"INSERT INTO {Db.tableName} VALUES (@data) ON CONFLICT (data ->> 'id') DO UPDATE SET data = EXCLUDED.data"
+                    $"INSERT INTO {Db.tableName} VALUES (@data) ON CONFLICT ((data ->> 'id')) DO UPDATE SET data = EXCLUDED.data"
                     "INSERT ON CONFLICT UPDATE statement not correct"
             }
             testList "Count" [
