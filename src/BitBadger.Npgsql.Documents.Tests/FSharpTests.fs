@@ -193,22 +193,22 @@ let integrationTests =
 
                 use db2 = ThrowawayDatabase.Create Db.connStr
                 Configuration.useDataSource (Db.mkDataSource db2.ConnectionString)
-                Expect.throws (fun () -> source.OpenConnection () |> ignore) "Data source should have been disposed"
+                Expect.throws (fun () -> source.OpenConnection() |> ignore) "Data source should have been disposed"
             }
             test "dataSource returns configured data source" {
                 use db = ThrowawayDatabase.Create Db.connStr
                 let source = Db.mkDataSource db.ConnectionString
                 Configuration.useDataSource source
 
-                Expect.isTrue (obj.ReferenceEquals (source, Configuration.dataSource ()))
+                Expect.isTrue (obj.ReferenceEquals(source, Configuration.dataSource ()))
                     "Data source should have been the same"
             }
             test "useSerializer succeeds" {
                 try
                     Configuration.useSerializer
                         { new IDocumentSerializer with
-                            member _.Serialize<'T> (it : 'T) : string = """{"Overridden":true}"""
-                            member _.Deserialize<'T> (it : string) : 'T = Unchecked.defaultof<'T>
+                            member _.Serialize<'T>(it: 'T) : string = """{"Overridden":true}"""
+                            member _.Deserialize<'T>(it: string) : 'T = Unchecked.defaultof<'T>
                         }
                     
                     let serialized = Configuration.serializer().Serialize { Foo = "howdy"; Bar = "bye"}
@@ -220,7 +220,7 @@ let integrationTests =
                     Configuration.useSerializer Configuration.defaultSerializer
             }
             test "serializer returns configured serializer" {
-                Expect.isTrue (obj.ReferenceEquals (Configuration.defaultSerializer, Configuration.serializer ()))
+                Expect.isTrue (obj.ReferenceEquals(Configuration.defaultSerializer, Configuration.serializer ()))
                     "Serializer should have been the same"
             }
             test "useIdField / idField succeeds" {
