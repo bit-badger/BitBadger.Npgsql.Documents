@@ -50,7 +50,7 @@ let connStr =
 
 /// Create a data source using the derived connection string
 let mkDataSource cStr =
-    (NpgsqlDataSourceBuilder cStr).Build ()
+    NpgsqlDataSourceBuilder(cStr).Build()
 
 
 open BitBadger.Npgsql.FSharp.Documents
@@ -58,11 +58,16 @@ open BitBadger.Npgsql.FSharp.Documents
 /// Build the throwaway database
 let buildDatabase () =
     
-    let database = ThrowawayDatabase.Create(connStr)
+    let database = ThrowawayDatabase.Create connStr
 
-    database.ConnectionString
-    |> Sql.connect
+    let sqlProps = Sql.connect database.ConnectionString
+    
+    sqlProps
     |> Sql.query (Definition.createTable tableName)
+    |> Sql.executeNonQuery
+    |> ignore
+    sqlProps
+    |> Sql.query (Definition.createKey tableName)
     |> Sql.executeNonQuery
     |> ignore
 

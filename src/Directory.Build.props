@@ -1,12 +1,13 @@
 <Project>
   <PropertyGroup>
-    <TargetFrameworks>net6.0;net7.0</TargetFrameworks>
+    <TargetFrameworks>net6.0;net7.0;net8.0</TargetFrameworks>
     <DebugType>embedded</DebugType>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
-    <VersionPrefix>1.0.0</VersionPrefix>
-    <PackageReleaseNotes>Initial production release</PackageReleaseNotes>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <FileVersion>2.0.0.0</FileVersion>
+    <VersionPrefix>2.0.0</VersionPrefix>
+    <PackageReleaseNotes>- BREAKING CHANGE: Remove ID column from database and from several function calls
+- FEATURE: Support .NET 8</PackageReleaseNotes>
     <Authors>danieljsummers</Authors>
     <Company>Bit Badger Solutions</Company>
     <PackageReadmeFile>README.md</PackageReadmeFile>

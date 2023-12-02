@@ -22,7 +22,7 @@ Configuration.useDataSource dataSource
 // ...
 ```
 
-By default, the library uses a System.Text.Json-based serializer configured to use the FSharp.SystemTextJson converter. To provide a different serializer (different options, more converters, etc.), construct it to implement `IDocumentSerializer` and provide it via `Configuration.useSerializer`.
+By default, the library uses a `System.Text.Json`-based serializer configured to use the `FSharp.SystemTextJson` converter. To provide a different serializer (different options, more converters, etc.), construct it to implement `IDocumentSerializer` and provide it via `Configuration.useSerializer`. If custom serialization makes the serialized Id field not be `Id`, that will also need to be configured.
 
 ## Using
 

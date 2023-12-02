@@ -1,6 +1,7 @@
 ﻿module BitBadger.Npgsql.FSharp.Documents
 
 /// The type of index to generate for the document
+[<Struct>]
 type DocumentIndex =
     /// A GIN index with standard operations (all operators supported)
     | Full
@@ -17,17 +18,17 @@ module Configuration =
 
     /// The default JSON serializer options to use with the stock serializer
     let private jsonDefaultOpts =
-        let o = JsonSerializerOptions ()
-        o.Converters.Add (JsonFSharpConverter ())
+        let o = JsonSerializerOptions()
+        o.Converters.Add (JsonFSharpConverter())
         o
     
     /// The default JSON serializer
     let internal defaultSerializer =
         { new IDocumentSerializer with
-            member _.Serialize<'T> (it : 'T) : string =
-                JsonSerializer.Serialize (it, jsonDefaultOpts)
-            member _.Deserialize<'T> (it : string) : 'T =
-                JsonSerializer.Deserialize<'T> (it, jsonDefaultOpts)
+            member _.Serialize<'T>(it: 'T) : string =
+                JsonSerializer.Serialize(it, jsonDefaultOpts)
+            member _.Deserialize<'T>(it: string) : 'T =
+                JsonSerializer.Deserialize<'T>(it, jsonDefaultOpts)
         }
     
     /// The serializer to use for document manipulation
@@ -46,7 +47,7 @@ module Configuration =
 
     /// Register a data source to use for query execution (disposes the current one if it exists)
     let useDataSource source =
-        if Option.isSome dataSourceValue then dataSourceValue.Value.Dispose ()
+        if Option.isSome dataSourceValue then dataSourceValue.Value.Dispose()
         dataSourceValue <- Some source
     
     /// Retrieve the currently configured data source
@@ -54,6 +55,17 @@ module Configuration =
         match dataSourceValue with
         | Some source -> source
         | None -> invalidOp "Please provide a data source before attempting data access"
+    
+    /// The serialized name of the ID field for documents
+    let mutable idFieldValue = "Id"
+    
+    /// Specify the name of the ID field for documents
+    let useIdField it =
+        idFieldValue <- it
+    
+    /// Retrieve the currently configured ID field for documents
+    let idField () =
+        idFieldValue
 
 
 open Npgsql.FSharp
@@ -76,8 +88,13 @@ module Definition =
 
     /// SQL statement to create a document table
     let createTable name =
-        $"CREATE TABLE IF NOT EXISTS %s{name} (id TEXT NOT NULL PRIMARY KEY, data JSONB NOT NULL)"
+        $"CREATE TABLE IF NOT EXISTS %s{name} (data JSONB NOT NULL)"
     
+    /// SQL statement to create a key index for a document table
+    let createKey (name : string) =
+        let tableName = name.Split(".") |> Array.last
+        $"CREATE UNIQUE INDEX IF NOT EXISTS idx_{tableName}_key ON {name} ((data ->> '{Configuration.idField ()}'))"
+        
     /// SQL statement to create an index on documents in the specified table
     let createIndex (name : string) idxType =
         let extraOps = match idxType with Full -> "" | Optimized -> " jsonb_path_ops"
@@ -88,8 +105,10 @@ module Definition =
     module WithProps =
         
         /// Create a document table
-        let ensureTable name sqlProps =
-            sqlProps |> Sql.query (createTable name) |> Sql.executeNonQueryAsync |> ignoreTask
+        let ensureTable name sqlProps = backgroundTask {
+            do! sqlProps |> Sql.query (createTable name) |> Sql.executeNonQueryAsync |> ignoreTask
+            do! sqlProps |> Sql.query (createKey   name) |> Sql.executeNonQueryAsync |> ignoreTask
+        }
 
         /// Create an index on documents in the specified table
         let ensureIndex name idxType sqlProps =
@@ -111,6 +130,10 @@ module Query =
     let selectFromTable tableName =
         $"SELECT data FROM %s{tableName}"
     
+    /// Create a WHERE clause fragment to implement an ID-based query
+    let whereById paramName =
+        $"data ->> '{Configuration.idField ()}' = %s{paramName}"
+    
     /// Create a WHERE clause fragment to implement a @> (JSON contains) condition
     let whereDataContains paramName =
         $"data @> %s{paramName}"
@@ -120,42 +143,43 @@ module Query =
         $"data @? %s{paramName}::jsonpath"
     
     /// Create a JSONB document parameter
-    let jsonbDocParam (it : obj) =
+    let jsonbDocParam (it: obj) =
         Sql.jsonb (Configuration.serializer().Serialize it)
 
     /// Create ID and data parameters for a query
-    let docParameters<'T> docId (doc : 'T) =
+    let docParameters<'T> docId (doc: 'T) =
         [ "@id", Sql.string docId; "@data", jsonbDocParam doc ]
     
     /// Query to insert a document
     let insert tableName =
-        $"INSERT INTO %s{tableName} (id, data) VALUES (@id, @data)"
+        $"INSERT INTO %s{tableName} VALUES (@data)"
 
     /// Query to save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
     let save tableName =
-        $"INSERT INTO %s{tableName} (id, data) VALUES (@id, @data) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data"
+        sprintf "INSERT INTO %s VALUES (@data) ON CONFLICT ((data ->> '%s')) DO UPDATE SET data = EXCLUDED.data"
+                tableName (Configuration.idField ()) 
     
     /// Queries for counting documents
     module Count =
         
         /// Query to count all documents in a table
         let all tableName =
-            $"SELECT COUNT(id) AS it FROM %s{tableName}"
+            $"SELECT COUNT(*) AS it FROM %s{tableName}"
         
         /// Query to count matching documents using a JSON containment query (@>)
         let byContains tableName =
-            $"""SELECT COUNT(id) AS it FROM %s{tableName} WHERE {whereDataContains "@criteria"}"""
+            $"""SELECT COUNT(*) AS it FROM %s{tableName} WHERE {whereDataContains "@criteria"}"""
         
         /// Query to count matching documents using a JSON Path match (@?)
         let byJsonPath tableName =
-            $"""SELECT COUNT(id) AS it FROM %s{tableName} WHERE {whereJsonPathMatches "@path"}"""
+            $"""SELECT COUNT(*) AS it FROM %s{tableName} WHERE {whereJsonPathMatches "@path"}"""
     
     /// Queries for determining document existence
     module Exists =
 
         /// Query to determine if a document exists for the given ID
         let byId tableName =
-            $"SELECT EXISTS (SELECT 1 FROM %s{tableName} WHERE id = @id) AS it"
+            $"""SELECT EXISTS (SELECT 1 FROM %s{tableName} WHERE {whereById "@id"}) AS it"""
 
         /// Query to determine if documents exist using a JSON containment query (@>)
         let byContains tableName =
@@ -170,7 +194,7 @@ module Query =
 
         /// Query to retrieve a document by its ID
         let byId tableName =
-            $"{selectFromTable tableName} WHERE id = @id"
+            $"""{selectFromTable tableName} WHERE {whereById "@id"}"""
         
         /// Query to retrieve documents using a JSON containment query (@>)
         let byContains tableName =
@@ -185,11 +209,11 @@ module Query =
 
         /// Query to update a document
         let full tableName =
-            $"UPDATE %s{tableName} SET data = @data WHERE id = @id"
+            $"""UPDATE %s{tableName} SET data = @data WHERE {whereById "@id"}"""
 
         /// Query to update a document
         let partialById tableName =
-            $"UPDATE %s{tableName} SET data = data || @data WHERE id = @id"
+            $"""UPDATE %s{tableName} SET data = data || @data WHERE {whereById "@id"}"""
         
         /// Query to update partial documents matching a JSON containment query (@>)
         let partialByContains tableName =
@@ -204,7 +228,7 @@ module Query =
         
         /// Query to delete a document by its ID
         let byId tableName =
-            $"DELETE FROM %s{tableName} WHERE id = @id"
+            $"""DELETE FROM %s{tableName} WHERE {whereById "@id"}"""
 
         /// Query to delete documents using a JSON containment query (@>)
         let byContains tableName =
@@ -216,40 +240,39 @@ module Query =
         
 
 /// Create a domain item from a document, specifying the field in which the document is found
-let fromDocument<'T> field (row : RowReader) : 'T =
-    Configuration.serializer().Deserialize<'T> (row.string field)
+let fromDocument<'T> field (row: RowReader) : 'T =
+    Configuration.serializer().Deserialize<'T>(row.string field)
     
 /// Create a domain item from a document
 let fromData<'T> row : 'T =
     fromDocument "data" row
 
 /// Execute a non-query statement to manipulate a document
-let private executeNonQuery query docId (document : 'T) sqlProps =
+let private executeNonQuery query (document: 'T) sqlProps =
+    sqlProps
+    |> Sql.query query
+    |> Sql.parameters [ "@data", Query.jsonbDocParam document ]
+    |> Sql.executeNonQueryAsync
+    |> ignoreTask
+
+/// Execute a non-query statement to manipulate a document with an ID specified
+let private executeNonQueryWithId query docId (document: 'T) sqlProps =
     sqlProps
     |> Sql.query query
     |> Sql.parameters (Query.docParameters docId document)
     |> Sql.executeNonQueryAsync
     |> ignoreTask
 
-
 /// Versions of queries that accept SqlProps as the last parameter
 module WithProps =
     
     /// Insert a new document
-    let insert<'T> tableName docId (document : 'T) sqlProps =
-        executeNonQuery (Query.insert tableName) docId document sqlProps
-
-    /// Insert a new document
-    let insertFunc<'T> tableName (idFunc : 'T -> string) (document : 'T) sqlProps =
-        insert<'T> tableName (idFunc document) document sqlProps
+    let insert<'T> tableName (document: 'T) sqlProps =
+        executeNonQuery (Query.insert tableName) document sqlProps
 
     /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
-    let save<'T> tableName docId (document : 'T) sqlProps =
-        executeNonQuery (Query.save tableName) docId document sqlProps
-
-    /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
-    let saveFunc<'T> tableName (idFunc : 'T -> string) (document : 'T) sqlProps =
-        save tableName (idFunc document) document sqlProps
+    let save<'T> tableName (document: 'T) sqlProps =
+        executeNonQuery (Query.save tableName) document sqlProps
 
     /// Commands to count documents
     [<RequireQualifiedAccess>]
@@ -262,7 +285,7 @@ module WithProps =
             |> Sql.executeRowAsync (fun row -> row.int "it")
         
         /// Count matching documents using a JSON containment query (@>)
-        let byContains tableName (criteria : obj) sqlProps : Task<int> =
+        let byContains tableName (criteria: obj) sqlProps : Task<int> =
             sqlProps
             |> Sql.query (Query.Count.byContains tableName)
             |> Sql.parameters [ "@criteria", Query.jsonbDocParam criteria ]
@@ -287,7 +310,7 @@ module WithProps =
             |> Sql.executeRowAsync (fun row -> row.bool "it")
 
         /// Determine if a document exists using a JSON containment query (@>)
-        let byContains tableName (criteria : obj) sqlProps : Task<bool> =
+        let byContains tableName (criteria: obj) sqlProps : Task<bool> =
             sqlProps
             |> Sql.query (Query.Exists.byContains tableName)
             |> Sql.parameters [ "@criteria", Query.jsonbDocParam criteria ]
@@ -321,7 +344,7 @@ module WithProps =
         }
 
         /// Execute a JSON containment query (@>)
-        let byContains<'T> tableName (criteria : obj) sqlProps : Task<'T list> =
+        let byContains<'T> tableName (criteria: obj) sqlProps : Task<'T list> =
             sqlProps
             |> Sql.query (Query.Find.byContains tableName)
             |> Sql.parameters [ "@criteria", Query.jsonbDocParam criteria ]
@@ -335,7 +358,7 @@ module WithProps =
             |> Sql.executeAsync fromData<'T>
         
         /// Execute a JSON containment query (@>), returning only the first result
-        let firstByContains<'T> tableName (criteria : obj) sqlProps : Task<'T option> = backgroundTask {
+        let firstByContains<'T> tableName (criteria: obj) sqlProps : Task<'T option> = backgroundTask {
             let! results = byContains tableName criteria sqlProps
             return List.tryHead results
         }
@@ -351,19 +374,19 @@ module WithProps =
     module Update =
         
         /// Update an entire document
-        let full<'T> tableName docId (document : 'T) sqlProps =
-            executeNonQuery (Query.Update.full tableName) docId document sqlProps
+        let full<'T> tableName docId (document: 'T) sqlProps =
+            executeNonQueryWithId (Query.Update.full tableName) docId document sqlProps
         
         /// Update an entire document
-        let fullFunc<'T> tableName (idFunc : 'T -> string) (document : 'T) sqlProps =
+        let fullFunc<'T> tableName (idFunc: 'T -> string) (document: 'T) sqlProps =
             full tableName (idFunc document) document sqlProps
         
         /// Update a partial document
-        let partialById tableName docId (partial : obj) sqlProps =
-            executeNonQuery (Query.Update.partialById tableName) docId partial sqlProps
+        let partialById tableName docId (partial: obj) sqlProps =
+            executeNonQueryWithId (Query.Update.partialById tableName) docId partial sqlProps
         
         /// Update partial documents using a JSON containment query in the WHERE clause (@>)
-        let partialByContains tableName (criteria : obj) (partial : obj) sqlProps =
+        let partialByContains tableName (criteria: obj) (partial: obj) sqlProps =
             sqlProps
             |> Sql.query (Query.Update.partialByContains tableName)
             |> Sql.parameters [ "@data", Query.jsonbDocParam partial; "@criteria", Query.jsonbDocParam criteria ]
@@ -371,7 +394,7 @@ module WithProps =
             |> ignoreTask 
         
         /// Update partial documents using a JSON Path match query in the WHERE clause (@?)
-        let partialByJsonPath tableName jsonPath (partial : obj) sqlProps =
+        let partialByJsonPath tableName jsonPath (partial: obj) sqlProps =
             sqlProps
             |> Sql.query (Query.Update.partialByJsonPath tableName)
             |> Sql.parameters [ "@data", Query.jsonbDocParam partial; "@path", Sql.string jsonPath ]
@@ -384,10 +407,10 @@ module WithProps =
         
         /// Delete a document by its ID
         let byId tableName docId sqlProps =
-            executeNonQuery (Query.Delete.byId tableName) docId {||} sqlProps
+            executeNonQueryWithId (Query.Delete.byId tableName) docId {||} sqlProps
 
         /// Delete documents by matching a JSON contains query (@>)
-        let byContains tableName (criteria : obj) sqlProps =
+        let byContains tableName (criteria: obj) sqlProps =
             sqlProps
             |> Sql.query (Query.Delete.byContains tableName)
             |> Sql.parameters [ "@criteria", Query.jsonbDocParam criteria ]
@@ -397,7 +420,7 @@ module WithProps =
         /// Delete documents by matching a JSON Path match query (@?)
         let byJsonPath tableName path sqlProps =
             sqlProps
-            |> Sql.query $"""DELETE FROM %s{tableName} WHERE {Query.whereJsonPathMatches "@path"}"""
+            |> Sql.query (Query.Delete.byJsonPath tableName)
             |> Sql.parameters [ "@path", Sql.string path ]
             |> Sql.executeNonQueryAsync
             |> ignoreTask
@@ -407,19 +430,19 @@ module WithProps =
     module Custom =
 
         /// Execute a query that returns one or no results
-        let single<'T> query parameters (deserFunc : RowReader -> 'T) sqlProps = backgroundTask {
+        let single<'T> query parameters (mapFunc: RowReader -> 'T) sqlProps = backgroundTask {
             let! results =
                 Sql.query query sqlProps
                 |> Sql.parameters parameters
-                |> Sql.executeAsync deserFunc
+                |> Sql.executeAsync mapFunc
             return List.tryHead results
         }
 
         /// Execute a query that returns a list of results
-        let list<'T> query parameters (deserFunc : RowReader -> 'T) sqlProps =
+        let list<'T> query parameters (mapFunc: RowReader -> 'T) sqlProps =
             Sql.query query sqlProps
             |> Sql.parameters parameters
-            |> Sql.executeAsync deserFunc
+            |> Sql.executeAsync mapFunc
 
         /// Execute a query that returns no results
         let nonQuery query parameters sqlProps =
@@ -429,27 +452,19 @@ module WithProps =
             |> ignoreTask
         
         /// Execute a query that returns a scalar value
-        let scalar<'T when 'T : struct> query parameters (mapFunc : RowReader -> 'T) sqlProps =
+        let scalar<'T when 'T : struct> query parameters (mapFunc: RowReader -> 'T) sqlProps =
             Sql.query query sqlProps
             |> Sql.parameters parameters
             |> Sql.executeRowAsync mapFunc
 
 
 /// Insert a new document
-let insert<'T> tableName docId (document : 'T) =
-    WithProps.insert tableName docId document (fromDataSource ())
-
-/// Insert a new document
-let insertFunc<'T> tableName idFunc (document : 'T) =
-    WithProps.insertFunc tableName idFunc document (fromDataSource ())
+let insert<'T> tableName (document: 'T) =
+    WithProps.insert tableName document (fromDataSource ())
 
 /// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
-let save<'T> tableName docId (document : 'T) =
-    WithProps.save<'T> tableName docId document (fromDataSource ())
-
-/// Save a document, inserting it if it does not exist and updating it if it does (AKA "upsert")
-let saveFunc<'T> tableName idFunc (document : 'T) =
-    WithProps.saveFunc<'T> tableName idFunc document (fromDataSource ())
+let save<'T> tableName (document: 'T) =
+    WithProps.save<'T> tableName document (fromDataSource ())
 
 
 /// Queries to count documents
@@ -507,7 +522,7 @@ module Find =
         WithProps.Find.byJsonPath<'T> tableName jsonPath (fromDataSource ())
     
     /// Execute a JSON containment query (@>), returning only the first result
-    let firstByContains<'T> tableName (criteria : obj) =
+    let firstByContains<'T> tableName (criteria: obj) =
         WithProps.Find.firstByContains<'T> tableName criteria (fromDataSource ())
 
     /// Execute a JSON Path match query (@?), returning only the first result
@@ -520,23 +535,23 @@ module Find =
 module Update =
 
     /// Update a full document
-    let full<'T> tableName docId (document : 'T) =
+    let full<'T> tableName docId (document: 'T) =
         WithProps.Update.full<'T> tableName docId document (fromDataSource ())
 
     /// Update a full document
-    let fullFunc<'T> tableName idFunc (document : 'T) =
+    let fullFunc<'T> tableName idFunc (document: 'T) =
         WithProps.Update.fullFunc<'T> tableName idFunc document (fromDataSource ())
 
     /// Update a partial document
-    let partialById tableName docId (partial : obj) =
+    let partialById tableName docId (partial: obj) =
         WithProps.Update.partialById tableName docId partial (fromDataSource ())
     
     /// Update partial documents using a JSON containment query in the WHERE clause (@>)
-    let partialByContains tableName (criteria : obj) (partial : obj) =
+    let partialByContains tableName (criteria: obj) (partial: obj) =
         WithProps.Update.partialByContains tableName criteria partial (fromDataSource ())
     
     /// Update partial documents using a JSON Path match query in the WHERE clause (@?)
-    let partialByJsonPath tableName jsonPath (partial : obj) =
+    let partialByJsonPath tableName jsonPath (partial: obj) =
         WithProps.Update.partialByJsonPath tableName jsonPath partial (fromDataSource ())
 
 
@@ -549,8 +564,8 @@ module Delete =
         WithProps.Delete.byId tableName docId (fromDataSource ())
 
     /// Delete documents by matching a JSON contains query (@>)
-    let byContains tableName (doc : obj) =
-        WithProps.Delete.byContains tableName doc (fromDataSource ())
+    let byContains tableName (criteria: obj) =
+        WithProps.Delete.byContains tableName criteria (fromDataSource ())
 
     /// Delete documents by matching a JSON Path match query (@?)
     let byJsonPath tableName path =
@@ -562,17 +577,17 @@ module Delete =
 module Custom =
 
     /// Execute a query that returns one or no results
-    let single<'T> query parameters (deserFunc : RowReader ->  'T) =
-        WithProps.Custom.single query parameters deserFunc (fromDataSource ())
+    let single<'T> query parameters (mapFunc: RowReader ->  'T) =
+        WithProps.Custom.single query parameters mapFunc (fromDataSource ())
 
     /// Execute a query that returns a list of results
-    let list<'T> query parameters (deserFunc : RowReader -> 'T) =
-        WithProps.Custom.list query parameters deserFunc (fromDataSource ())
+    let list<'T> query parameters (mapFunc: RowReader -> 'T) =
+        WithProps.Custom.list query parameters mapFunc (fromDataSource ())
 
     /// Execute a query that returns no results
     let nonQuery query parameters =
         WithProps.Custom.nonQuery query parameters (fromDataSource ())
 
     /// Execute a query that returns a scalar value
-    let scalar<'T when 'T : struct> query parameters (mapFunc : RowReader -> 'T) =
+    let scalar<'T when 'T: struct> query parameters (mapFunc: RowReader -> 'T) =
         WithProps.Custom.scalar query parameters mapFunc (fromDataSource ())
