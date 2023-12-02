@@ -430,19 +430,19 @@ module WithProps =
     module Custom =
 
         /// Execute a query that returns one or no results
-        let single<'T> query parameters (deserFunc: RowReader -> 'T) sqlProps = backgroundTask {
+        let single<'T> query parameters (mapFunc: RowReader -> 'T) sqlProps = backgroundTask {
             let! results =
                 Sql.query query sqlProps
                 |> Sql.parameters parameters
-                |> Sql.executeAsync deserFunc
+                |> Sql.executeAsync mapFunc
             return List.tryHead results
         }
 
         /// Execute a query that returns a list of results
-        let list<'T> query parameters (deserFunc: RowReader -> 'T) sqlProps =
+        let list<'T> query parameters (mapFunc: RowReader -> 'T) sqlProps =
             Sql.query query sqlProps
             |> Sql.parameters parameters
-            |> Sql.executeAsync deserFunc
+            |> Sql.executeAsync mapFunc
 
         /// Execute a query that returns no results
         let nonQuery query parameters sqlProps =
@@ -577,12 +577,12 @@ module Delete =
 module Custom =
 
     /// Execute a query that returns one or no results
-    let single<'T> query parameters (deserFunc: RowReader ->  'T) =
-        WithProps.Custom.single query parameters deserFunc (fromDataSource ())
+    let single<'T> query parameters (mapFunc: RowReader ->  'T) =
+        WithProps.Custom.single query parameters mapFunc (fromDataSource ())
 
     /// Execute a query that returns a list of results
-    let list<'T> query parameters (deserFunc: RowReader -> 'T) =
-        WithProps.Custom.list query parameters deserFunc (fromDataSource ())
+    let list<'T> query parameters (mapFunc: RowReader -> 'T) =
+        WithProps.Custom.list query parameters mapFunc (fromDataSource ())
 
     /// Execute a query that returns no results
     let nonQuery query parameters =

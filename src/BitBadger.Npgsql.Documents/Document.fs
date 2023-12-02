@@ -151,10 +151,10 @@ module WithProps =
         let Single<'T when 'T: null>(
             query: string,
             parameters: IEnumerable<Tuple<string, SqlValue>>,
-            deserFunc: Func<RowReader, 'T>,
+            mapFunc: Func<RowReader, 'T>,
             sqlProps : Sql.SqlProps
         ) : Task<'T> = backgroundTask {
-            let! result = FS.WithProps.Custom.single query (List.ofSeq parameters) deserFunc.Invoke sqlProps
+            let! result = FS.WithProps.Custom.single query (List.ofSeq parameters) mapFunc.Invoke sqlProps
             return Option.toObj result
         }
 
@@ -162,10 +162,10 @@ module WithProps =
         let List<'T>(
             query: string,
             parameters: IEnumerable<Tuple<string, SqlValue>>,
-            deserFunc: Func<RowReader, 'T>,
+            mapFunc: Func<RowReader, 'T>,
             sqlProps : Sql.SqlProps
         ) : Task<ResizeArray<'T>> = backgroundTask {
-            let! results = FS.WithProps.Custom.list query (List.ofSeq parameters) deserFunc.Invoke sqlProps
+            let! results = FS.WithProps.Custom.list query (List.ofSeq parameters) mapFunc.Invoke sqlProps
             return ResizeArray results
         }
 
@@ -302,13 +302,13 @@ module Custom =
     let Single<'T when 'T: null>(
         query: string,
         parameters: IEnumerable<Tuple<string, SqlValue>>,
-        deserFunc: Func<RowReader, 'T>
+        mapFunc: Func<RowReader, 'T>
     ) =
-        WithProps.Custom.Single(query, parameters, deserFunc, FS.fromDataSource ())
+        WithProps.Custom.Single(query, parameters, mapFunc, FS.fromDataSource ())
 
     /// Execute a query that returns a list of results
-    let List<'T>(query: string, parameters: IEnumerable<Tuple<string, SqlValue>>, deserFunc: Func<RowReader, 'T>) =
-        WithProps.Custom.List(query, parameters, deserFunc, FS.fromDataSource ())
+    let List<'T>(query: string, parameters: IEnumerable<Tuple<string, SqlValue>>, mapFunc: Func<RowReader, 'T>) =
+        WithProps.Custom.List(query, parameters, mapFunc, FS.fromDataSource ())
 
     /// Execute a query that returns no results
     let NonQuery(query: string, parameters: IEnumerable<Tuple<string, SqlValue>>) =
