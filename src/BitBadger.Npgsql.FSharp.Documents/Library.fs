@@ -57,7 +57,7 @@ module Configuration =
         | None -> invalidOp "Please provide a data source before attempting data access"
     
     /// The serialized name of the ID field for documents
-    let mutable idFieldValue = "id"
+    let mutable idFieldValue = "Id"
     
     /// Specify the name of the ID field for documents
     let useIdField it =

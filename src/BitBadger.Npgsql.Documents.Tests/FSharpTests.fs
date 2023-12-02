@@ -32,7 +32,7 @@ let unitTests =
             }
             test "createKey succeeds" {
                 Expect.equal (Definition.createKey Db.tableName)
-                    $"CREATE UNIQUE INDEX IF NOT EXISTS idx_{Db.tableName}_key ON {Db.tableName} ((data ->> 'id'))"
+                    $"CREATE UNIQUE INDEX IF NOT EXISTS idx_{Db.tableName}_key ON {Db.tableName} ((data ->> 'Id'))"
                     "CREATE INDEX for key statement not constructed correctly"
             }
             test "createIndex succeeds for full index" {
@@ -52,7 +52,7 @@ let unitTests =
                     "SELECT statement not correct"
             }
             test "whereById succeeds" {
-                Expect.equal (Query.whereById "@id") "data ->> 'id' = @id" "WHERE clause not correct"
+                Expect.equal (Query.whereById "@id") "data ->> 'Id' = @id" "WHERE clause not correct"
             }
             test "whereDataContains succeeds" {
                 Expect.equal (Query.whereDataContains "@test") "data @> @test" "WHERE clause not correct"
@@ -78,7 +78,7 @@ let unitTests =
             }
             test "save succeeds" {
                 Expect.equal (Query.save Db.tableName)
-                    $"INSERT INTO {Db.tableName} VALUES (@data) ON CONFLICT ((data ->> 'id')) DO UPDATE SET data = EXCLUDED.data"
+                    $"INSERT INTO {Db.tableName} VALUES (@data) ON CONFLICT ((data ->> 'Id')) DO UPDATE SET data = EXCLUDED.data"
                     "INSERT ON CONFLICT UPDATE statement not correct"
             }
             testList "Count" [
@@ -100,7 +100,7 @@ let unitTests =
             testList "Exists" [
                 test "byId succeeds" {
                     Expect.equal (Query.Exists.byId Db.tableName)
-                        $"SELECT EXISTS (SELECT 1 FROM {Db.tableName} WHERE data ->> 'id' = @id) AS it"
+                        $"SELECT EXISTS (SELECT 1 FROM {Db.tableName} WHERE data ->> 'Id' = @id) AS it"
                         "ID existence query not correct"
                 }
                 test "byContains succeeds" {
@@ -117,7 +117,7 @@ let unitTests =
             testList "Find" [
                 test "byId succeeds" {
                     Expect.equal (Query.Find.byId Db.tableName)
-                        $"SELECT data FROM {Db.tableName} WHERE data ->> 'id' = @id" "SELECT by ID query not correct"
+                        $"SELECT data FROM {Db.tableName} WHERE data ->> 'Id' = @id" "SELECT by ID query not correct"
                 }
                 test "byContains succeeds" {
                     Expect.equal (Query.Find.byContains Db.tableName)
@@ -133,12 +133,12 @@ let unitTests =
             testList "Update" [
                 test "full succeeds" {
                     Expect.equal (Query.Update.full Db.tableName)
-                        $"UPDATE {Db.tableName} SET data = @data WHERE data ->> 'id' = @id"
+                        $"UPDATE {Db.tableName} SET data = @data WHERE data ->> 'Id' = @id"
                         "UPDATE full statement not correct"
                 }
                 test "partialById succeeds" {
                     Expect.equal (Query.Update.partialById Db.tableName)
-                        $"UPDATE {Db.tableName} SET data = data || @data WHERE data ->> 'id' = @id"
+                        $"UPDATE {Db.tableName} SET data = data || @data WHERE data ->> 'Id' = @id"
                         "UPDATE partial by ID statement not correct"
                 }
                 test "partialByContains succeeds" {
@@ -154,7 +154,7 @@ let unitTests =
             ]
             testList "Delete" [
                 test "byId succeeds" {
-                    Expect.equal (Query.Delete.byId Db.tableName) $"DELETE FROM {Db.tableName} WHERE data ->> 'id' = @id"
+                    Expect.equal (Query.Delete.byId Db.tableName) $"DELETE FROM {Db.tableName} WHERE data ->> 'Id' = @id"
                         "DELETE by ID query not correct"
                 }
                 test "byContains succeeds" {
@@ -224,8 +224,10 @@ let integrationTests =
                     "Serializer should have been the same"
             }
             test "useIdField / idField succeeds" {
+                Expect.equal (Configuration.idField ()) "Id" "The default configured ID field was incorrect"
+                Configuration.useIdField "id"
+                Expect.equal (Configuration.idField ()) "id" "useIdField did not set the ID field"
                 Configuration.useIdField "Id"
-                Expect.equal (Configuration.idField ()) "Id" "useIdField did not set the ID field"
             }
         ]
         testList "Definition" [
@@ -741,9 +743,6 @@ let integrationTests =
                 Expect.equal nbr 5 "The query should have returned the number 5"
             }
         ]
-        test "reset Configuration id field for further testing" {
-            Configuration.useIdField "id"
-        }
     ]
     |> testSequenced
 
